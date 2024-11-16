@@ -1,0 +1,108 @@
+---
+title: "time_series_analyzing_seasonality"
+author: "Hannington Ouma Odiembo"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document: default
+---
+
+## The original entry as a dataframe and the annual representation of the quarters for each year as an average of the quarters
+
+```{r}
+
+# Provided data values
+values <- c(48, 41, 60, 65, 58, 52, 68, 74, 60, 68, 76, 78)
+
+# Create a data frame with the provided values
+years <- rep(2018:2020, each = 4)
+quarters <- rep(1:4, times = 3)
+data <- data.frame(Year = years, Quarter = quarters, Value = values)
+
+# Transform the data into the desired format
+original_values_df <- reshape(data, idvar = "Year", timevar = "Quarter", direction = "wide")
+
+# Select and rename the columns to match the desired format
+original_values_df <- original_values_df[, c("Year", "Value.1", "Value.2", "Value.3", "Value.4")]
+colnames(original_values_df) <- c("Year", "Q1", "Q2", "Q3", "Q4")
+
+# Calculate the annual averages
+annual_data <- aggregate(values ~ Year, data = data, FUN = mean)
+
+# Merge with annual averages
+final_df <- merge(original_values_df, annual_data, by = "Year")
+
+# Print the final data frame
+print(final_df)
+
+```
+
+## The annual trend values
+
+```{r}
+# Fit an OLS trend line to the annual data
+y = annual_data$values
+trend_model <- lm(y ~ Year, data = annual_data)
+annual_data$Trend <- predict(trend_model, newdata = annual_data)
+final_df1 = merge(final_df, annual_data); final_df1
+```
+
+## The quarterly trend values
+
+```{r}
+# Calculate the slope of the trend line
+slope <- coef(trend_model)["Year"]
+intercept <- coef(trend_model)["(Intercept)"]
+
+# Compute quarterly trend values
+trend_values <- data.frame(Year = unique(data$Year), Q1 = NA, Q2 = NA, Q3 = NA, Q4 = NA)
+
+for (year in unique(data$Year)) {
+  annual_trend <- annual_data$Trend[annual_data$Year == year]
+  quarterly_increment <- slope / 4
+  Q2 <- annual_trend - quarterly_increment / 2
+  Q3 <- annual_trend + quarterly_increment / 2
+  Q1 <- Q2 - quarterly_increment
+  Q4 <- Q3 + quarterly_increment
+  
+  trend_values[trend_values$Year == year, c("Q1", "Q2", "Q3", "Q4")] <- c(Q1, Q2, Q3, Q4)
+}
+
+# Print the calculated quarterly trend values
+print(trend_values)
+```
+
+## Eliminating the trend component
+
+```{r}
+# Ensuring both data frames have the same structure and dimensions
+if (!all(dim(original_values_df) == dim(trend_values))) {
+  stop("Data frames must have the same dimensions")
+}
+
+# Checking if the structure of both data frames are the same
+if (!all(names(original_values_df) == names(trend_values))) {
+  stop("Data frames must have the same column names")
+}
+
+# Eliminating trend values (expressing the quarterly original data as a percentage of the quarterly trnd values; excluding the column years)
+
+result_df <- original_values_df
+result_df[,-1] <- (original_values_df[,-1] / trend_values[,-1]) * 100; result_df
+```
+
+## Getting the Preliminary Seasonal Indices by averaging the quarters
+
+```{r}
+quarter_averages <- colMeans(result_df[,-1]); quarter_averages
+
+```
+
+## Getting the adjusted PSI's
+
+```{r}
+# Getting the adjustment factor 
+k = 400/sum(quarter_averages)
+adjusted_PSIs = k*quarter_averages; adjusted_PSIs
+
+```

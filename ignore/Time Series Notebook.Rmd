@@ -1,0 +1,188 @@
+---
+title: "Time Series Notebook"
+author: "Chesia Anyika"
+date: "2024-05-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Week 1
+
+# Week 2
+
+## Class 1 - Moving Averages (Un-weighted, Weighted)
+
+### Example Question 1
+
+Create the dataframe.
+
+```{r}
+season = rep(c("summer", "monsoon", "winter", "spring"), 3)
+
+data = data.frame(season = season,
+                  year = c(rep(2020, 4),
+                           rep(2021, 4),
+                           rep(2022, 4)),
+                  levels = c(70, 52, 22, 31, 101, 64, 24, 45, 146, 92, 38, 49))
+
+data
+```
+
+#### 1. Un-weighted moving average.
+
+```{r}
+library(zoo)
+data$moving_avg =  rollapply(data$levels, width = 4, FUN = mean, align = 'right', fill = NA)
+data 
+```
+
+#### 2. Weighted moving average
+
+```{r}
+wgt = c(1, 2, 3, 4)
+
+weighted_avg = function(x){
+  sum(x * wgt)/ sum(wgt)
+}
+
+data$wgt_avg = rollapply(data$levels, width = 4, FUN = weighted_avg, align = 'right', fill = NA)
+
+data
+```
+
+#### Plot the data
+
+```{r}
+#create a sequence of timepoints
+x = seq(1, 9)
+
+#create dataframe of data to be plotted
+plot_data = data.frame(x,
+             moving_avg = na.omit(data$moving_avg),
+             wgt_mvn_avg = na.omit(data$wgt_avg))
+
+plot_data
+```
+
+```{r}
+library(ggplot2)
+
+#plot line graphs
+ggplot(plot_data, aes(x=x))+
+  geom_line(aes(y = moving_avg), color = "blue")+
+  geom_line(aes(y = wgt_mvn_avg), color = "red")
+  labs(title = "Line Graphs of Moving Averages",
+       x = "X",
+       y = "Values") +
+  scale_color_manual(name = "Legend", values = c("moving_avg" = "blue", "wgt_mvn_avg" = "red")) +
+  theme_minimal()
+```
+
+## Class 2 - Exponential Moving Averages
+
+### Example Question 2
+
+**The following Table shows the number of insurance claims received by an insurance company in each four month period from 2018 to 2021**
+
+| **Year**         | 2018 |     |     | 2019 |     |     | 2020 |     |     | 2021 |     |     |
+|------------------|------|-----|-----|------|-----|-----|------|-----|-----|------|-----|-----|
+| **Period**       | I    | II  | III | I    | II  | III | I    | II  | III | I    | II  | III |
+| **No of claims** | 17   | 13  | 15  | 19   | 17  | 19  | 22   | 14  | 20  | 23   | 19  | 20  |
+
+**Compute the Exponential Moving Averages using** $\alpha = 0.2, 0.4, 0.8$**. Compare results.**
+
+Formula: $Exponential \ smoothing\ (y't) = \alpha * y_t + (1- \alpha)*y'_{t - 1}$
+
+First I created the table in r:
+
+```{r}
+#define parameters
+# Define the data
+year <- c(2018, 2018, 2018, 2019, 2019, 2019, 2020, 2020, 2020, 2021, 2021, 2021)
+period <- rep(c("I", "II", "III"), 4)
+claims <- c(17, 13, 15, 19, 17, 19, 22, 14, 20, 23, 19, 20)
+
+# Create a dataframe
+data <- data.frame(Year = year, Period = period, Claims = claims)
+
+data
+```
+
+#### $\alpha = 0.2$
+
+I then computed the forecasted values as per the formula given
+
+```{r}
+#define alpha parameter
+alpha <- 0.2
+
+# Initialize the first forecast value
+data$Forecast.2 <- NA
+data$Forecast.2[1] <- data$Claims[1]
+
+# Calculate the forecasted values using exponential smoothing
+for (i in 2:nrow(data)) {
+  data$Forecast.2[i] <- alpha * data$Claims[i] + (1 - alpha) * data$Forecast.2[i-1]
+}
+
+# View the dataframe with forecasted values
+data
+```
+
+#### $\alpha = 0.4$
+
+```{r}
+#define alpha parameter
+alpha <- 0.4
+
+# Initialize the first forecast value
+data$Forecast.4 <- NA
+data$Forecast.4[1] <- data$Claims[1]
+
+# Calculate the forecasted values using exponential smoothing
+for (i in 2:nrow(data)) {
+  data$Forecast.4[i] <- alpha * data$Claims[i] + (1 - alpha) * data$Forecast.4[i-1]
+}
+
+# View the dataframe with forecasted values
+data
+```
+
+#### $\alpha = 0.8$
+
+```{r}
+# define alpha parameter
+alpha <- 0.8
+
+# Initialize the first forecast value
+data$Forecast.8 <- NA
+data$Forecast.8[1] <- data$Claims[1]
+
+# Calculate the forecasted values using exponential smoothing
+for (i in 2:nrow(data)) {
+  data$Forecast.8[i] <- alpha * data$Claims[i] + (1 - alpha) * data$Forecast.8[i-1]
+}
+
+# View the dataframe with forecasted values
+data
+```
+
+#### Plot the graphs
+
+```{r}
+#create a sequence of timepoints
+x = seq(1, 12)
+
+#plot line graphs
+ggplot(data, aes(x=x))+
+  geom_line(aes(y = Claims, group = 1), color = "orange")+
+  geom_line(aes(y = Forecast.2, group = 1), color = "blue")+
+  geom_line(aes(y = Forecast.4, group = 1), color = "red")+
+  geom_line(aes(y = Forecast.8, group = 1), color = "purple")
+  labs(title = "Line Graphs of Forecasted",
+       x = "X",
+       y = "Values")
+```

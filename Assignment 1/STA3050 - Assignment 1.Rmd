@@ -1,0 +1,235 @@
+---
+title: "STA3050A - Assignment 1"
+author: "Chesia Anyika"
+date: "2024-05-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question
+
+The annual expenditure levels (in millions) to promote products and services for the financial services sector such as banks , insurance, investments, etc. from 2015 to 2022 are shown in the following table:
+
+| Year            | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 |
+|-----------------|------|------|------|------|------|------|------|------|
+| **Expenditure** | 5.5  | 7.2  | 8.0  | 9.6  | 10.2 | 11.0 | 12.5 | 14.0 |
+
+Use exponential smoothing to obtain forecasted values by taking $\alpha = 0.5, 0.7$ and $0.9$ and calculate the forecast errors. Also plot the original and smoothed values.
+
+# Execution
+
+## Libraries
+
+```{r}
+#load the necessary libraries
+library(tidyverse)
+```
+
+## Create Table in Long Format
+
+First I input the given values into vectors, and created a table in **long format** using the `data.frame()` function.
+
+```{r}
+#create vectors
+year <- c('2015','2016','2017','2018','2019','2020','2021','2022')
+expenditure <- c(5.5, 7.2, 8.0, 9.6, 10.2 ,11.0, 12.5, 14.0)
+
+#create table
+data <- data.frame(year, expenditure)
+
+#view table
+data
+```
+
+## Case 1: $\alpha = 0.5$
+
+### Step 1: Obtain Forecast Values Using Exponential Smoothing
+
+The formula for obtaining filtered values using exponential smoothing is:
+
+$$
+y't = \alpha yt + (1- \alpha)y't - 1
+$$
+
+To implement this formula in r, I first defined my alpha parameter, then I initialised an empty column in the `data` table for forecasted values, and specified the value of the first forecast value as 5.5. This is because the first forecast value ( $y't$ ) is always equals to the first value of the variable of interest ( $yt$ ), represented mathematically as: $y'1 = y1$.
+
+```{r}
+#define alpha parameter
+alpha <- 0.5
+
+# Initialize the first forecast value
+data$Forecast.5 <- NA
+data$Forecast.5[1] <- data$expenditure[1]
+
+#view the results
+data
+```
+
+I then created a **for loop** that calculates the forecast values as per the formula given above, using the **value of interest in the expenditure column (** $yt$ **)**, and the **preceding value computed in the forecast column (** $y't$ **).** This yields a column of the computed forecast values with $\alpha = 0.5$.
+
+```{r}
+# Calculate the forecasted values using exponential smoothing
+for (i in 2:nrow(data)) {
+  data$Forecast.5[i] <- alpha * data$expenditure[i] + (1 - alpha) * data$Forecast.5[i-1]
+}
+
+# View the dataframe with forecasted values
+data
+```
+
+### Step 2: Compute Forecast Error
+
+Forecast error is computed as $yt - y't$. I computed this as follows:
+
+```{r}
+# Calculate the forecast error for each time period
+data$Error.5 <- data$expenditure - data$Forecast.5
+
+data
+```
+
+## Case 2: $\alpha = 0.7$
+
+### Step 1: Obtain Forecast Values Using Exponential Smoothing
+
+I defined my alpha parameter as 0.7, initialised a new empty column for the forecast values and specified the first value. Then, I used the same for loop of the exponential smoothing formula created in Step 2 to compute the subsequent values.
+
+```{r}
+#define alpha parameter
+alpha <- 0.7
+
+# Initialize the first forecast value
+data$Forecast.7 <- NA
+data$Forecast.7[1] <- data$expenditure[1]
+
+#view the results
+data
+```
+
+```{r}
+# Calculate the forecasted values using exponential smoothing
+for (i in 2:nrow(data)) {
+  data$Forecast.7[i] <- alpha * data$expenditure[i] + (1 - alpha) * data$Forecast.7[i-1]
+}
+
+# View the dataframe with forecasted values
+data
+```
+
+### Step 2: Compute Forecast Error
+
+Forecast error is computed as $yt - y't$. I computed this as follows:
+
+```{r}
+# Calculate the forecast error for each time period
+data$Error.7 <- data$expenditure - data$Forecast.7
+
+data
+```
+
+## Case 3: $\alpha = 0.9$
+
+### Step 1: Obtain Forecast Values Using Exponential Smoothing
+
+I defined my alpha parameter as 0.9, initialised a new empty column for the forecast values and specified the first value. Then, I used the same for loop of the exponential smoothing formula created in Step 2 to compute the subsequent values.
+
+```{r}
+#define alpha parameter
+alpha <- 0.9
+
+# Initialize the first forecast value
+data$Forecast.9 <- NA
+data$Forecast.9[1] <- data$expenditure[1]
+
+#view the results
+data
+```
+
+```{r}
+# Calculate the forecasted values using exponential smoothing
+for (i in 2:nrow(data)) {
+  data$Forecast.9[i] <- alpha * data$expenditure[i] + (1 - alpha) * data$Forecast.9[i-1]
+}
+
+# View the dataframe with forecasted values
+data
+```
+
+### Step 2: Compute Forecast Error
+
+Forecast error is computed as $yt - y't$. I computed this as follows:
+
+```{r}
+# Calculate the forecast error for each time period
+data$Error.9 <- data$expenditure - data$Forecast.9
+
+data
+```
+
+## Compare Accuracy of Forecast Values
+
+I then used the forecast values to compute **Mean Absolute Error** and **Mean Squared Error**, to compare the accuracy of the different forecast values given the alpha values.
+
+```{r}
+# Compute the Mean Absolute Error (MAE)
+MAE.5 <- mean(abs(data$Error.5), na.rm = TRUE)
+MAE.7 <- mean(abs(data$Error.7), na.rm = TRUE)
+MAE.9 <- mean(abs(data$Error.9), na.rm = TRUE)
+
+# Compute the Mean Squared Error (MSE)
+MSE.5 <- mean(data$Error.5^2, na.rm = TRUE)
+MSE.7 <- mean(data$Error.7^2, na.rm = TRUE)
+MSE.9 <- mean(data$Error.9^2, na.rm = TRUE)
+
+
+# View MAE and MSE
+cat('\n Mean Absolute Errors: ', '\n alpha = 5: ', MAE.5, '\n alpha = 7: ', MAE.7, '\n alpha = 9: ', MAE.9, '\n Mean Squared Errors: ', '\n alpha = 5: ', MSE.5, '\n alpha = 7: ', MSE.7, '\n alpha = 9: ', MSE.9)
+
+```
+
+**Interpretation**
+
+Lower MAE and MSE values indicate a more accurate forecast value. For both MAE and MSE:
+
+-   Case 3 with $\alpha = 0.9$ has the most accurate forecast values. (MAE = 0.1158, MSE = 0.0167)
+
+-   Ccase 2 with $\alpha = 0.7$ has less accurate forecast values. (MAE = 0.4223, MSE = 0.2137)
+
+-   Case 1 with $\alpha = 0.5$ has the least accurate forecast values. (MAE = 0.8952, MSE = 0.9497)
+
+## Plot the Original and Smoothed Values
+
+I plotted the original and forecast values as **line graphs**, with the original values being a **solid line** and the Forecast values being **dashed lines** of **different colours dependent on the alpha value.** I did this usign the `ggplot()` and `geom_line()` functions as shown below:
+
+```{r}
+# Plot original and forecasted values
+ggplot(data, aes(x = year)) +
+  geom_line(aes(y = expenditure, color = "Original", group = 1), linetype = "solid") +
+  geom_line(aes(y = Forecast.5, color = "Forecasted (alpha = 0.5)", group = 1), linetype = "dashed") +
+  geom_line(aes(y = Forecast.7, color = "Forecasted (alpha = 0.7)", group = 1), linetype = "dashed") +
+  geom_line(aes(y = Forecast.9, color = "Forecasted (alpha = 0.9)", group = 1), linetype = "dashed") +
+  labs(title = "Original and Forecasted Expenditure Values",
+       y = "Expenditure (millions)",
+       color = "Series") +
+  scale_color_manual(values = c("Original" = "black",
+                                 "Forecasted (alpha = 0.5)" = "red",
+                                 "Forecasted (alpha = 0.7)" = "blue",
+                                 "Forecasted (alpha = 0.9)" = "green")) +
+  theme_minimal()
+
+```
+
+**Interpretation**
+
+The above visualisation shows that:
+
+-   Case 3 values forecast using $\alpha = 0.9$ exhibit the least difference form the original values, as evidenced by how close their respective lines are on the graph.
+
+-   Case 2 values forecast using $\alpha = 0.7$ exhibit more of a difference from the original values.
+
+-   Case 3 values forecast using $\alpha = 0.9$ exhibit the greatest difference from the original values, as evidenced by how the two respective lines are the furthest away from each other on the graph.
+
+These observations are in line with the **observations made when comparing the accuracy of the models**. Thus, it can be concluded that the higher the alpha value, the higher the accuracy of the forecast values.

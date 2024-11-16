@@ -1,0 +1,273 @@
+---
+title: "STA3050 - Assignment 4"
+author: "Chesia Anyika"
+date: "2024-07-16"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1.0 Question
+
+**Data-set Description:**
+
+You have been provided with monthly sales data for a new retail store over a period of approximately 6.5 years (80 months).
+The data is measured in thousands of dollars.
+
+**Data-set:** `timeseries_data.csv`
+
+**Tasks:**
+
+1.  Load the data-set into RStudio and plot a time series graph to visualize the monthly sales data.
+
+    − Provide an interpretation of any observed trends or patterns in the data.
+
+2.  Perform the Augmented Dickey-Fuller (ADF) test on the sales data to determine if it is stationary.
+
+    − Interpret the results of the test and discuss the implications for further analysis.
+
+3.  Apply the Box-Cox transformation to the sales data to stabilize variance.
+
+    − Plot the transformed data and interpret how the transformation impacts the distribution and stationarity of the data.
+
+4.  Perform the ADF test on the transformed sales data to confirm stationarity.
+
+    − Interpret the results and compare them with those from Question 2 to assess the effectiveness of the Box-Cox transformation.
+
+5.  Compute and plot the Autocorrelation Function (ACF) for up to 20 lags of the transformed sales data.
+
+    − Interpret the correlogram to identify any significant autocorrelation patterns and their implications for forecasting
+
+Below are the necessary libraries for the analysis:
+
+```{r}
+#libraries used
+library(tidyverse)
+library(zoo)
+library(tseries) #ADF test
+library(MASS) #Box-Cox
+library(forecast) #ACF
+```
+
+# 2.0 Time-Series Graph
+
+I imported the data-set, and converted the Date column into a date object.
+
+```{r}
+#import timeseries_data
+data <- read_csv("timeseries_data.csv")
+
+# Convert Date column to yearmon
+data$Date <- trimws(data$Date)
+data$Date <- as.yearmon(data$Date, "%Y-%m")
+
+#View results
+head(data)
+```
+
+I then created a line graph of sales over time to get a better idea of the trend of sales growth, as follows:
+
+```{r}
+# Plot the data using ggplot2
+ggplot(data, aes(x = Date, y = Sales)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Sales from January 2017 to July 2023", x = "Date (Month-Year)", y = "Sales (thousands of dollars)") +
+  theme_minimal()
+
+```
+
+**Interpretation**
+
+The line graph of sales over time from shows a steady and consistent linear increase in monthly sales from approximately 10 thousand dollars in January 2017 to nearly 50 thousand dollars in July 2023, which is nearly quintuple the amount of sales the business began with.
+
+# 3.0 Augmented Dickey-Fuller (ADF) Test
+
+The **Augmented Dickey-Fuller (ADF) test** is a common statistical test used to determine whether a time series is stationary.
+A stationary time series has properties like mean and variance that do not change over time.
+
+To perform this test, we use the `adf.test()` function from the `tseries` library, and obtain results as follows:
+
+```{r}
+# Perform the ADF test on the Sales data
+adf_result <- adf.test(data$Sales)
+
+adf_result
+```
+
+**Interpretation**
+
+The most important metric for consideration in this test is the p-value.
+The p-value of $0.01$ -- which is actually smaller than the printed value as indicated by the warning: `Warning: p-value smaller than printed p-value` -- is less than the conventional significance level of $0.05$, thus we have sufficient evidence to reject the null hypothesis of the ADF test, which states that the series is non-stationary.
+
+Thus, we conclude that the sales data is stationary, and statistical properties such as mean and variance do not change over time.
+
+# 4.0 Box-Cox Transformation
+
+**Stabilising of Variance**:
+
+Stabilizing variance refers to reducing or eliminating the variability in the spread or dispersion of data values, typically achieved through transformations or adjustments that make the variance more consistent across the data-set.
+
+Given that our data has been determined as stationary according to the ADF test, stabilising variance is not immediately necessary for stationarity purposes, but may be necessary for certain modelling goals.
+
+**The Box-Cox Transformation**
+
+This is a method used to stabilize variance and achieve approximate normality in data by applying a power transformation to the data values.
+This power transformation is applies to the data values, and can be mathematically represented as:
+
+$$
+\frac{y^\lambda - 1}{\lambda} \ \ \ \ \  \text{if } \lambda \neq 0 \\
+\log(y) \ \ \ \ \ \ \ \ \text{if } \lambda = 0
+$$
+
+> Where:
+>
+> -   $y$ represents the original data values.
+>
+> -   $\lambda$ is the transformation parameter, which determines the type of transformation:
+>
+>     -   When $\lambda = 0$ the transformation is equivalent to taking the natural logarithm of the data $\text{log}(y)$
+>
+>     -   For other values of $\lambda$, the transformation adjusts the data using a power function, $\frac{y^{\lambda} - 1}{\lambda}$
+
+## 4.1 Applying the Box-Cox Transformation
+
+I used the `boxcox()` function from the `MASS` library to apply the transformation.
+The function estimates the optimal $\lambda$ parameter for the transformation.
+
+```{r}
+# Apply Box-Cox transformation and store the result
+x <- data$Sales
+b <- boxcox(lm(x~1))
+
+# Extract the lambda value chosen by the function
+lambda <- b$x[which.max(b$y)]
+lambda
+```
+
+The peak of the curve in the plot above shows that the ideal $\lambda$ value is between 0 and 1, and we extract the exact $\lambda$ parameter as $\lambda = 0.7071$.
+Using this, we can now apply the box-cox transformation to our data using an if/else statement as follows:
+
+```{r}
+# Transform the Sales data using the chosen lambda
+data$Sales_trans <- if (lambda == 0) log(data$Sales) else ((data$Sales^lambda - 1) / lambda)
+
+#View results
+data
+```
+
+## 4.2 Comparing Original and Transformed data
+
+### 4.2.1 Visualisation: Line-graph
+
+I then created a **Line-graph** comparing the original trend line and that of the transformed sales values, to examine the impact of the box-cox transformation of the sales data.
+
+```{r}
+# Plot the original and transformed Sales data
+ggplot(data, aes(x = Date)) +
+  geom_line(aes(y = Sales, color = "Original")) +  # Original Sales line plot
+  geom_point(aes(y = Sales), color = "blue") +  # Original Sales points
+  geom_line(aes(y = Sales_trans, color = "Transformed")) +  # Transformed Sales line plot
+  geom_point(aes(y = Sales_trans), color = "red") +  # Transformed Sales points
+  labs(title = "Impact of Box-Cox Transformation on Sales Data",
+       x = "Date (Month-Year)", y = "Sales (thousands of dollars)") +
+  scale_color_manual(values = c("Original" = "blue", "Transformed" = "red"),
+                     labels = c("Original", "Transformed")) +
+  theme_minimal()
+
+
+```
+
+**Interpretation** The plot shows that the sales data are distributed over a narrower range of values, exhibiting **reduced variance** compared to the original data.
+
+The transformation also **increases normality** of the distribution, as data points cluster more closely along the trend line, reducing the very subtle, but present deviations of points from the original trend line.
+
+### 4.2.2 Stationarity: ADF test
+
+I applied the Augmented Dickey-Fuller (ADF) test on the transformed data, to compare its stationarity against the original data, and thus assess the effectiveness of the Box-Cox transformation.
+
+```{r}
+# Perform the ADF test on the Sales_trans data
+adf_trans <- adf.test(data$Sales_trans)
+
+adf_trans
+```
+
+**Interpretation**
+
+The p-value of the test is $0.99$ -- the true value is actually higher, given the warning `Warning: p-value greater than printed p-value` -- which is greater than the conventional significance level of $0.05$.
+Thus, we fail to reject the null hypothesis of the ADF test which states that the series is non-stationary.
+
+This suggests that the **box-cox test was not effective in reducing stationarity** of the sales data, as it may have unintentionally introduced variablility or trends that the ADF now detects as non-stationary.
+Furthermore, the transformation might not have adequately addressed underlying patterns or seasonalities in the data, leading to the loss of stationarity.
+
+# 5.0 Autocorrelation Function (ACF)
+
+**Autocorrelation** in time series refers to the correlation between a series and its lagged values, measuring how each observation is related to preceding observations over time.
+
+It is significant in time series forecasting as it helps identify patterns of dependency and predictability within the data, guiding the selection of appropriate forecasting models and the determination of lagged terms to improve prediction accuracy.
+
+**Implications for Forecasting**:
+
+-   **Positive Autocorrelation**: Indicates that past values are predictive of future values.
+    For forecasting, models like ARIMA (AutoRegressive Integrated Moving Average) may be appropriate.
+
+-   **Negative Autocorrelation**: Less common but can suggest inverse relationships between time points.
+
+-   **No Autocorrelation**: Random pattern around zero indicates no predictable pattern over time.
+
+I used the `acf()` function from the `forecast` library to apply the autocorrelation function as follows:
+
+```{r}
+# Compute ACF for up to 20 lags
+acf_result <- acf(data$Sales_trans, lag.max = 20, plot = FALSE)
+
+acf_result
+```
+
+All **lags** -- which refers to the time intervals between observations -- show positive autocorrelation, indicating that past sales values are predictive of future sales values for the transformed sales data.
+
+For a more intuitive understanding, I plotted a bar graph to visualise the autocorrelation against the number of lags, as follows:
+
+```{r}
+# Convert ACF result to a data frame for plotting
+acf_df <- data.frame(
+  Lag = acf_result$lag,
+  ACF = acf_result$acf
+)
+
+# Plot the ACF
+ggplot(acf_df, aes(x = Lag, y = ACF)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
+  geom_hline(yintercept = 0, color = "gray50", linetype = "dashed") +
+  labs(title = "Autocorrelation Function (ACF) of Transformed Sales Data",
+       x = "Lag", y = "Autocorrelation") +
+  theme_minimal()
+
+```
+
+**Interpretation**\
+The graph shows positive autocorrelation for all lags, with lag 1 having the highest bar (at 1.00) above the horizontal line at 0.00, and a steady decrease from lag 1 to lag 20 (where lag 20 has the least at 0.25).
+This suggests the following:
+
+1\.
+**Strong Autocorrelation**: The high bar at lag 1 (1.00) indicates a perfect positive correlation between each observation and its immediate predecessor.
+This means each month's sales strongly depends on the sales of the previous month.
+
+2\.
+**Decreasing Autocorrelation with Lag**: The decreasing trend from lag 1 to lag 20 suggests that the strength of this dependency diminishes as the time interval between observations increases.
+However, the autocorrelation remains positive, indicating that past sales values still influence current values, albeit to a decreasing extent.
+
+**Implications**
+
+-   **Forecasting Insight**: The strong autocorrelation at lag 1 suggests that a simple forecasting model like an Autoregressive (AR) model could be effective, where future values are predicted based on past values, and specifically the most recent one.
+
+-   **Model Selection**: The decreasing trend in autocorrelation with increasing lag suggests that including only recent past values (lags 1 to 2, for instance) might be sufficient for forecasting, rather than including distant historical data that has less influence.
+
+In summary, the ACF graph indicates a persistently positive autocorrelation across all lags, with the strongest correlation observed at lag 1 and gradually decreasing correlations with longer lags.
+This understanding guides the selection of appropriate models for forecasting future values based on historical data.

@@ -1,0 +1,766 @@
+---
+title: "STA3050 Mid Sem Exam"
+author: "Chesia Anyika"
+date: "2024-06-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**CASE SCENARIO: TOURIST ANALYSIS IN CAPETOWN**
+
+Cape Town, a scenic destination celebrated for its breathtaking landscapes and rich cultural heritage, attracts a diverse group of tourists throughout the year. Its charming old town, scenic hiking trails, vibrant local markets, and tranquil beaches offer visitors a wide array of activities. The attached hypothetical data provides insights into the number of tourists visiting Cape Town from 2019 to 2023.
+
+1\. Determine the seasonal variation in tourist numbers for each using the ratio-to-moving average approach from 2019 to 2023. (6 Marks)
+
+2\. Obtain a clearer view of the underlying trend by eliminating seasonal fluctuations. (6 Marks)
+
+3\. Compute the long-term trend in tourist numbers over the specified period by applying the suitable trend analysis to the deseasonalized data. (6 Marks)
+
+4\. Obtain the cyclic index to better understand the cyclical variations in tourist numbers that may be influenced by economic cycles or other factors. (6 Marks)
+
+5\. Generate graphs of the data to illustrate the seasonal, trend, and cyclic components in the number of tourists visiting Cape Town. (6 Marks)
+
+# 1. Data Preparation
+
+First I imported all of the Libraries that would be necessary for my analysis.
+
+```{r}
+#libraries
+library(readxl)
+library(zoo)
+library(tidyverse)
+library(reshape2)
+```
+
+I then imported the data and examined it.
+
+```{r}
+#import the data
+data <- read_excel("Mid-sem dataset.xlsx")
+
+#view the dataset
+data
+```
+
+The data has four columns:
+
+-   `Season` - This states the season with levels Summer, Autumn, Winter, Spring.
+
+-   `Month` - This states the Month, from January to December.
+
+-   `Year` - This states the Year, with levels 2019, 2020, 2021, 2022.
+
+-   `No_of_tourists` - This gives the total number of tourists recorded per month.
+
+I ensured the Month column is a factor variable with defined order
+
+```{r}
+# Define the chronological order of the months
+month_levels <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+
+# Convert the Month variable to a factor with the defined order
+data$Month <- factor(data$Month, levels = month_levels, ordered = TRUE)
+```
+
+I then Merged the Month and year columns for ease of plotting.
+
+```{r}
+#combine the two columns
+data$Month_Year <- paste(data$Month, data$Year, sep = "_")
+
+#convert into factor variable
+data$Month_Year <- factor(data$Month_Year, levels = data$Month_Year)
+
+#view results
+data$Month_Year
+```
+
+# 2. Seasonal Variation
+
+The **seasonal variation** refers to fluctuations or changes in a phenomenon that occur regularly at specific times within a year. The seasonal variation can be assumed to be the difference between the actual value and the moving average trend value. Seasonal variations can be calculated using the additive or multiplicative models.
+
+First, we can compute the moving average values using the **Ratio to moving average method**
+
+## 2.1 Moving Average
+
+First I computed a 12 point moving average as follows:
+
+```{r}
+#12 moving average
+data$moving_avg =  rollapply(data$No_of_tourists, width = 12, FUN = mean, align = 'center', fill = NA)
+
+#view reuslts
+data$moving_avg
+```
+
+I then computed the 2 point centered moving average as follows:
+
+```{r}
+# Calculate the centered moving average
+data$centered_moving_avg <- rollapply(data$moving_avg, width = 2, FUN = mean, align = 'center', fill = NA)
+
+#view results
+data$centered_moving_avg
+```
+
+## 2.2 Seasonal Variation
+
+Using the multiplicative model to calculate the seasonal variation, I computed the **quotient of the actual value by centered moving average value**.
+
+```{r}
+#compute seasonal variation
+data$seasonal_variation <- data$No_of_tourists/data$centered_moving_avg
+
+#view results
+head(data$seasonal_variation, 10)
+```
+
+The variations have been expressed as a **percentage** of the average figure, rather than an absolute. Excluding the NA values, this suggests that month 61is usually $114\%$ of the trend, month 2 is $121\%$ and month 3 is $116\%$.
+
+I visualised the seasonal variation using a line graph as follows:
+
+```{r}
+# Create the plot using ggplot2 with adjusted x-axis labels
+ggplot(data, aes(x = Month_Year)) +
+  geom_line(aes(y = seasonal_variation, group = 1), linetype = "solid") +
+  geom_point(aes(y = seasonal_variation, group = 1)) + 
+  labs(title = "Seasonal Variation in Tourist Numbers",
+       x = "Month",
+       y = "Seasonal Variation (Adjusted Indices)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(labels = function(x) {
+    ifelse(grepl("^January|^June", x), x, "")
+  })
+
+
+```
+
+This graph shows a cyclical trend in the monthly variations, with tourist number routinely being lowest at the beginning of the year, and highest towards the middle of the year.
+
+# 3. De-seasonalisation
+
+De-seasonalization, also known as seasonal adjustment or seasonal decomposition, is a statistical process used to remove the seasonal variations or fluctuations from a time series dataset. The goal of deseasonalizing data is to isolate the underlying trend or irregular components, thereby allowing for more accurate analysis, forecasting, or comparison across different time periods.
+
+In order to compute the deseasonalised values given the centered moving average, we must compute the **seasonal ratio,** and the **seasonal indices**.
+
+## 3.1 Seasonal Ratio
+
+I computed the seasonal ratio for each period for which we have the moving average) by dividing each actual time series value by its corresponding moving average value as per the formula:
+
+$$
+\text{Seasonal Ratio} = \frac{\text{Actual Value}}{\text{Moving Average}} \times 100
+$$
+
+```{r}
+#compute the seasonal ratios
+data$seasonal_ratio <- (data$No_of_tourists / data$centered_moving_avg)*100
+
+#view results
+data$seasonal_ratio
+```
+
+I then created a two-way table with Months as row-names, Years as column-names and seasonal ratios as the values.
+
+```{r}
+# Create a two-way table
+seasonal_table <- dcast(data, Month ~ Year, value.var = "seasonal_ratio")
+
+# Set proper column names
+names(seasonal_table) <- c("Month", paste0("Year_", names(seasonal_table)[2:ncol(seasonal_table)]))
+
+#view results
+seasonal_table
+```
+
+## 3.2 Seasonal Indices
+
+I then computed the **Seasonal Indices** which are the row-wise median, and added it to the seasonal table as follows:
+
+```{r}
+# Calculate the row-wise median
+row_medians <- apply(seasonal_table[, -1], 1, function(x) median(x, na.rm = TRUE))
+
+# Add the row-wise medians to the table
+seasonal_table$row_median <- row_medians
+
+# view table column
+seasonal_table[ncol(seasonal_table)]
+```
+
+I then computed the **Adjusted Seasonal Indices** as per the formula:
+
+$$
+\text{Adjusted Seasonal index} = \frac{\text{Seasonal Index}}{\text{Avg. Seasonal Index}} \times 100
+$$
+
+```{r}
+#compute average seasonal index
+Avg.seasonal_index <- ((sum(seasonal_table$row_median))/nrow(seasonal_table))
+
+#view result
+cat('Average Seasonal Index: ', Avg.seasonal_index)
+```
+
+```{r}
+#compute adjusted seasonal index
+seasonal_table$Adj.seasonal_index <- ((seasonal_table$row_median)/(Avg.seasonal_index))*100
+
+#view results
+seasonal_table[ncol(seasonal_table)]
+```
+
+I then computed the **sum** and **average** of the Adjusted moving indices, which should sum up to $1200$ and $100$ respectively.
+
+```{r}
+#compute sum and average
+Adj.sum <- sum(seasonal_table$Adj.seasonal_index)
+Adj.avg <- (Adj.sum)/nrow(seasonal_table)
+
+#view
+cat('Sum: ', Adj.sum,
+    'Average: ', Adj.avg)
+```
+
+## 3.3 De-seasonalised Data
+
+With the Adjusted Seasonal Indices, we can now compute the de-seasonalised values of the tourist numbers per month. For calculating deseasonalised values, we divide the actual value by its corresponding seasonal index, that is:
+
+$$
+\text{Deseasonalised value} = \frac{\text{Actual Value}}{\text{Seasonal Index}} \times 100
+$$
+
+```{r}
+#add seasonal indices to data table
+data$Adj.seasonal_index <- rep(seasonal_table$Adj.seasonal_index, nrow(data)/12)
+
+#view results
+data[ncol(data)]
+```
+
+```{r}
+#compute deseasonalised values
+data$deseasonalised <- ((data$No_of_tourists)/(data$Adj.seasonal_index))*100
+
+#view results
+data$deseasonalised
+```
+
+## 3.4 De-seasonalised Seasonal variation
+
+I then computed the seasonal variation of the deseasonalised data to compare the observed trend with the previous values.
+
+### 3.4.1 Moving average
+
+```{r}
+#12 moving average
+data$moving_avg2 =  rollapply(data$deseasonalised, width = 12, FUN = mean, align = 'center', fill = NA)
+
+#view reuslts
+data$moving_avg2
+```
+
+```{r}
+# Calculate the centered moving average
+data$centered_moving_avg2 <- rollapply(data$moving_avg2, width = 2, FUN = mean, align = 'center', fill = NA)
+
+#view results
+data$centered_moving_avg2
+```
+
+### 3.4.2 Seasonal Variation
+
+```{r}
+#compute seasonal variation
+data$seasonal_variation2 <- data$deseasonalised/data$centered_moving_avg2
+
+#view results
+head(data$seasonal_variation2, 10)
+```
+
+### 3.4.3 Visualisation
+
+```{r}
+# Create the plot using ggplot2 with adjusted x-axis labels
+ggplot(data, aes(x = Month_Year)) +
+  geom_line(aes(y = seasonal_variation2, group = 1), linetype = "solid") +
+  geom_point(aes(y = seasonal_variation2, group = 1)) + 
+  labs(title = "Seasonal Variation in Tourist Numbers - Deseasonalised",
+       x = "Month",
+       y = "Seasonal Variation (Adjusted Indices)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(labels = function(x) {
+    ifelse(grepl("^January|^June", x), x, "")
+  })
+```
+
+**Interpretation**
+
+The trend is less cyclical, and shows that there was an **overall decrease in tourism in cape town during the years 2020 and 2021**, and there has been a **continuing increase of tourists in Cape town as of 2022**. The highest recorded number of tourists is in January of 2023.
+
+# 4. Trend Analysis
+
+We can use **Normal Equations** to estimate the constants of a **linear and quadratic model**, and thus fit both linear and quadratic tends to the deseasonalised data.
+
+The Normal Equations are a set of simultaneous linear equations derived from the least squares criterion, used to estimate the parameters $\beta_0$ (intercept), $\beta_1$ (slope), and $\beta_2$​ (quadratic term) in the case of linear and quadratic regression models.
+
+## 4.1 Linear Trend
+
+For a Linear Regression Model $Y_t = \beta_0 + \beta_1t$, the normal equations are:
+
+$$
+\sum Y_t = n \beta_0 + \beta_1 \sum t\\\sum tY_t = \beta_0 \sum t + \beta_1 \sum t^2
+$$
+
+> Where:
+>
+> $\beta_0$ is the intercept, the predicted value of Y when t = 0.
+>
+> $\beta_1$ is the slope of the trend line.
+
+For ease of calculation, we take the following transformations in t:
+
+$$
+X_t =\begin{cases}\frac{t - middle\ value}{interval \ in \ t \ values} & \text{when n is odd}\\\frac{t - average\ of\ two \ middle\ values}{half\ of \ interval \ in \ t \ values} & \text{when n is even}\end{cases}
+$$
+
+I defined this as a function as follows:
+
+```{r}
+#create function to compute Xt
+compute_Xt <- function(t) {
+  n <- length(t)
+  interval <- diff(range(t)) / (n - 1)
+  
+  if (n %% 2 == 1) {
+    middle_value <- median(t)
+    X_t <- (t - middle_value) / interval
+  } else {
+    middle_values <- sort(t)[c(n / 2, n / 2 + 1)]
+    middle_value_avg <- mean(middle_values)
+    half_interval <- interval / 2
+    X_t <- (t - middle_value_avg) / half_interval
+  }
+  
+  return(X_t)
+}
+```
+
+We then get the transformed equations as follows:
+
+$$
+\sum Y_t = n \beta_0 + \beta_1 \sum X_t\\
+\sum X_tY_t = \beta_0 \sum X_t + \beta_1 \sum X_t^2
+$$
+
+With these equations, using `Month` as $t$ and `deseasonalised` as $Y_t$ we need to compute $\sum Y_t$, $\sum X_t$, $\sum X_tY_t$ and $\sum X_t^2$. I thus created these respective columns in the data table as follows:
+
+\*\*Since `Month` is a non-numeric column, I replaced it with a sequence of numebrs.
+
+```{r}
+#replace month variable with a sequence
+data$t <- seq(1, nrow(data))
+
+#compute the Xt column
+data$Xt <- compute_Xt(data$t)
+
+#compute XtYt
+data$XtYt <- (data$Xt)*(data$deseasonalised) 
+
+#compute Xt^2
+data$Xt.sq <- (data$Xt)^2
+
+#View results
+data[15:18]
+```
+
+I then computed the sums of the respective columns
+
+```{r}
+#compute sums of relevant columns
+Yt.sum <- sum(data$deseasonalised)
+Xt.sum <- sum(data$Xt)
+XtYt.sum <- sum(data$XtYt)
+Xtsq.sum <- sum(data$Xt.sq)
+n <- nrow(data)
+
+#View sums
+cat('\n Sum of Yt: ', Yt.sum, '\n Sum of Xt: ', Xt.sum, '\n Sum of XtYt: ',XtYt.sum, '\n Sum of Xt.sq: ',Xtsq.sum, '\n n: ', n)
+```
+
+I used these computed values to solve for $\beta_0$ and $\beta_1$ using the normal equations, and obtained the following:
+
+$$
+1915419 = 60 \beta_0 + 0 \beta_1 \\9170928 = 0 \beta_0 + 71980 \beta_1
+$$
+
+I solved for the simultaneous equations using the matrix method, by rewriting the equations as the following matrices:
+
+$$
+\begin{pmatrix}69 & 0 \\0 & 71980\end{pmatrix}\begin{pmatrix}\beta_0 \\\beta_1\end{pmatrix}=\begin{pmatrix}1915419 \\9170928\end{pmatrix}
+$$
+
+I used the `solve()` function to compute this as follows:
+
+```{r}
+# Define the coefficients matrix
+A <- matrix(c(60, 0, 0, 71980), nrow = 2, byrow = TRUE)
+
+# Define the constants vector
+b <- c(1915419, 9170928)
+
+# Solve for beta
+beta <- solve(A, b)
+
+# Display the solutions
+beta_0 <- beta[1]
+beta_1 <- beta[2]
+
+cat("beta_0 =", beta_0, "\n")
+cat("beta_1 =", beta_1, "\n")
+```
+
+I then input $\beta_0$ and $\beta_1$ in the estimator equation $\hat Y_t = \hat \beta_0 + \hat \beta_1 X_t$, to get the linear trend as follows:
+
+$$
+\hat Y_t = 81923.65 + 127.4094 X_t\\
+$$
+
+To transform this to be in terms of t, I defined two functions that compute the parameters for the $X_t$ function in the case that $n$ is even, as per the formula:
+
+$$
+X_t[n\ is\ even] = \frac{t - avg\ of\ middle\ values}{half\ interval\ in \ t \ values}
+$$
+
+```{r}
+# Function to compute average of the middle values
+compute_middle_value_avg <- function(t) {
+  n <- length(t)
+  
+  if (n %% 2 == 1) {
+    middle_value_avg <- median(t)
+  } else {
+    middle_values <- sort(t)[c(n / 2, n / 2 + 1)]
+    middle_value_avg <- mean(middle_values)
+  }
+  
+  return(middle_value_avg)
+}
+
+# Function to compute half the interval between the middle values
+compute_half_interval <- function(t) {
+  n <- length(t)
+  interval <- diff(range(t)) / (n - 1)
+  
+  if (n %% 2 == 0) {
+    half_interval <- interval / 2
+  } else {
+    half_interval <- NA
+  }
+  
+  return(half_interval)
+}
+```
+
+I computed the parameters as follows:
+
+```{r}
+#compute parameters
+mid <- compute_middle_value_avg(data$t)
+interval <- compute_half_interval(data$t)
+
+#view results
+cat('\n Average of Middle Values: ', mid, '\n Half Interval of middle Values: ', interval)
+```
+
+Thus my $X_t$ function is:
+
+$$
+X_t = \frac{t-30.5}{0.5}
+$$
+
+I can hence rewrite my final estimator equation as:
+
+$$
+\hat Y_t = 81923.65 + 127.4094(
+\frac{t-30.5}{0.5}
+)
+$$
+
+I computed this for each row entry and added the values as a column in the data- frame.
+
+```{r}
+#compute estimated values
+data$Yt.hat <- beta_0 + (beta_1*((data$t)-mid)/interval)
+
+#View results
+data[ncol(data)]
+```
+
+## 4.2 Quadratic Trend
+
+For a Quadratic Regression Model $Y_t = \beta_0 + \beta_1t + \beta_2t^2$, the normal equations are:
+
+$$
+\sum Y_t = n \beta_0 + \beta_1 \sum t + \beta_2 \sum t^2 \\\sum t Y_t = \beta_0 \sum t + \beta_1 \sum t^2 + \beta_2 \sum t^3 \\\sum t^2 Y_t = \beta_0 \sum t^2 + \beta_1 \sum t^3 + \beta_2 \sum t^4
+$$
+
+For ease of computation, we may take the following transformations in t:
+
+$$
+X_t =\begin{cases}\frac{t - middle\ value}{interval \ in \ t \ values} & \text{when n is odd}\\\frac{t - average\ of\ two \ middle\ values}{half\ of \ interval \ in \ t \ values} & \text{when n is even}\end{cases}
+$$
+
+I defined this function in R as compute_Xtin the previous section. Thus we get the following transformed normal equations:
+
+$$
+\sum Y_t = n \beta_0 + \beta_1 \sum Xt + \beta_2 \sum X^2_t \\\sum X_t Y_t = \beta_0 \sum X_t + \beta_1 \sum X_t^2 + \beta_2 \sum X_t^3 \\\sum X_t^2 Y_t = \beta_0 \sum X_t^2 + \beta_1 \sum X_t^3 + \beta_2 \sum X_t^4\\ 
+$$
+
+With these equations, taking `t` as $t$ and `deseasonalised` as $Y_t$, we need to compute $\sum Yt$, $\sum Xt$, $\sum X_tY_t$, $\sum X_t^2$, $\sum X_t^2Y_t$, $\sum X_t^3$ and $\sum X_t^4$.
+
+As the first four parameters in the above list were previously calculated when computing the linear trend, I computed the remaining 3 parameters and created their respective tables in the data table as follows:
+
+```{r}
+#compute Xt.sqYt
+data$Xt.sqYt <- (data$Xt.sq)*(data$deseasonalised)
+
+#compute Xt.cube
+data$Xt.cube <- (data$Xt)^3
+
+#compute Xt.four
+data$Xt.four <- (data$Xt)^4
+
+#view the data results
+data[20:22]
+```
+
+I then computed the sum of the parameters:
+
+```{r}
+#compute Xt.sqYt
+Xt.sqYt.sum <- sum(data$Xt.sqYt)
+
+#compute Xt.cube
+Xt.cube.sum <- sum(data$Xt.cube)
+
+#compute Xt.four
+Xt.four.sum <- sum(data$Xt.four)
+
+#view the results
+cat('\n Sum of Xt.sqYt: ', Xt.sqYt.sum, '\n Sum of Xt.cube: ', Xt.cube.sum, '\n Sum of Xt.four: ', Xt.four.sum )
+```
+
+I used these computed values to solve for $\beta_0$, $\beta_1$ and $\beta_2$ in the normal equations, as follows:
+
+$$
+1915419 = 60\beta_0 + 0\beta_1 + 71980 \beta_2 \\
+9170928  = 0\beta_0 + 71980\beta_1 + 0\beta_2\\
+2261225353
+ = 71980\beta_0 + 0\beta_1 + 
+ 155376028
+\beta_2
+$$
+
+I solved these simultaneous equations using the matrix method, by rearranging them into the following system of matrices:
+
+$$
+\begin{pmatrix}
+60 & 0 & 71980 \\
+0 & 71980 & 0 \\
+71980 & 0 & 155376028
+\end{pmatrix}
+\begin{pmatrix}
+\beta_0 \\
+\beta_1 \\
+\beta_2
+\end{pmatrix} =
+\begin{pmatrix}
+1915419 \\
+9170928 \\
+2261225353
+\end{pmatrix}
+$$
+
+I used the `solve()` function to solve these as follows:
+
+```{r}
+# Define the coefficients matrix
+A <- matrix(c(60, 0,71980, 0, 71980, 0, 71980, 0, 155376028), nrow = 3, byrow = TRUE)
+
+# Define the constants vector
+b <- c(1915419, 9170928, 2261225353)
+
+# Solve for beta
+beta <- solve(A, b)
+
+# Display the solutions
+beta_0 <- beta[1]
+beta_1 <- beta[2]
+beta_2 <- beta[3]
+
+cat("beta_0 =", beta_0, "\n")
+cat("beta_1 =", beta_1, "\n")
+cat("beta_2 =", beta_2, "\n")
+```
+
+I then input $\beta_0$, $\beta_1$ and $\beta_2$ into the estimator equation $\hat Y_t = \beta_0 + \beta_1 X_t + \beta_2 X_t^2$, to get:
+
+$$ \hat Y_t = 32560.45 + 127.4094 X_t -0.5308 X_t^2
+$$
+
+I then transformed the equation in terms of t as per the formula:
+
+$$
+X_t = \frac{t - 2015.5}{0.5}
+$$
+
+Thus the final estimator equation can be written as follows:
+
+$$
+\hat Y_t = 32560.45 + 127.4094
+ (\frac{t - 30.5}{0.5}) -0.5308 (\frac{t - 30.5}{0.5})^2
+$$
+
+I computed this for each row entry, and added the results to a new column in the `data` table
+
+```{r}
+#compute the equation
+data$Yt.hat2 <- beta_0 + (beta_1*(data$t - mid)/interval) + (beta_2*((data$t - mid)/interval)^2)
+
+#view the results
+data[ncol(data)]
+```
+
+## 4.3 Visual Plot of Trend Lines
+
+**Line Graph: Linear and Quadratic Trends**
+
+I used a combined **line graph** to visually compare the computed linear and quadratic trend lines with the original values. I used the `geom_line()` function in the `ggplot` library.
+
+```{r}
+# Plot original and forecasted values
+ggplot(data, aes(x = Month_Year)) +
+  geom_line(aes(y = No_of_tourists, color = "Original", group = 1), linetype = "solid") +
+  geom_line(aes(y = deseasonalised, color = "Deseasonalised", group = 1), linetype = "dashed")+
+  geom_line(aes(y = Yt.hat, color = "Linear Trend", group = 1), linetype = "dashed") +
+  geom_line(aes(y = Yt.hat2, color = "Quadratic Trend", group = 1), linetype = "dashed") +
+  labs(title = "Original Line and Trend Lines",
+       x = "Months",
+       y = "No of Tourists",
+       color = "Series") +
+  scale_color_manual(values = c("Original" = "black",
+                                "Deseasonalised" = "purple",
+                                 "Linear Trend" = "red",
+                                 "Quadratic Trend" = "blue")) +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(labels = function(x) {
+    ifelse(grepl("^January|^June", x), x, "")
+  })
+```
+
+**Interpretation**
+
+The Line graphs show a **steadily increasing trend** in the number of tourists visiting capetown per month. From just this visualisation, it is difficult to determine which trend line fits the data the best, Thus we can compare **forecast errors** to better determine this.
+
+## 4.4 Forecast Errors
+
+**Forecast errors** can further help us determine which trend line more accurately represents the original values by measuring the **deviation between predicted and actual outcomes**. Smaller errors indicate a more precise fit, allowing for better evaluation and comparison of different models.
+
+The formula for computing forecast errors is:
+
+$$E_t = Y_t - \hat Y_t$$
+
+I computed this formula for both the linear and quadratic trends, and inputted the values into new columns on the `data` table as shown below:
+
+```{r}
+#compute forecast errors for linear trend
+data$lin.err <- (data$deseasonalised)-(data$Yt.hat)
+
+#compute forecast errors for quadratic trend
+data$quad.err <- (data$deseasonalised)-(data$Yt.hat2)
+
+#view the results
+data[24:25]
+```
+
+I then created a line plot comparison of the forecast errors for the linear and quadratic trends.
+
+```{r}
+# Plot original and forecasted values
+ggplot(data, aes(x = Month_Year)) +
+  geom_line(aes(y = lin.err, color = "Linear Trend Errors", group = 1), linetype = "solid") +
+  geom_line(aes(y = quad.err, color = "Quadratic Trend Errors", group = 1), linetype = "solid") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(title = "Linear and Quadratic Trend Errors",
+       x = "Months",
+       y = "Errors",
+       color = "Series") +
+  scale_color_manual(values = c("Linear Trend Errors" = "red",
+                                 "Quadratic Trend Errors" = "blue")) +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(labels = function(x) {
+    ifelse(grepl("^January|^June", x), x, "")
+  })
+
+
+```
+
+**Interpretation**
+
+The **Linear Trend** appears to be a slightly better fit than the quadratic trend, as the error line is closer to the zero-baseline at multiple points as compared to the quadratic trend line.
+
+# 5. Cyclic Components
+
+A cycle in the time series means a business cycle which normally exceeds a year in length. It has four phases; **prosperity (boom), recession, depression and recovery**. I used the **Residual Method** to compute the cyclic components of the data as follows:
+
+## 5.1 Compute Cyclic Components
+
+As we have already computed the **deseasonalised values** and **linear trend line values**, we can compute the cyclic components as per the formula:
+
+$$
+\text{Cyclic Component} = \frac{\text{Deseasonalised Value}}{\text{Trend Value}} \times 100
+$$
+
+This computes the deseasonalised values as a percentage of the trend values. I did this as follows:
+
+```{r}
+#compute cyclic components
+data$cyclic <- ((data$deseasonalised)/(data$Yt.hat))*100
+
+#View result
+data[ncol(data)]
+```
+
+## 5.2 Visualisation
+
+I then visualised the trend of the cyclic values as follows:
+
+```{r}
+# Create the plot using ggplot2 with adjusted x-axis labels
+ggplot(data, aes(x = Month_Year)) +
+  geom_line(aes(y = cyclic, color = 'Cyclic', group = 1), linetype = "dashed") +
+  geom_point(aes(y = cyclic, color = 'Cyclic', group = 1)) +
+  labs(title = "Cyclic Trend",
+       x = "Month",
+       y = "Cyclic Trend",
+       color = 'Series') +
+  scale_color_manual(values = c("Cyclic" = 'black')) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(labels = function(x) {
+    ifelse(grepl("^January|^June", x), x, "")
+  })
+```
+
+**Interpretation**
+
+The cyclic trend in tourism to Cape Town reflects broader economic influences. The **decrease in tourism observed during 2020 and 2021** aligns with global trends impacted by the COVID-19 pandemic, disrupting travel patterns worldwide. As **conditions improved from January 2022 to June 2023, tourism numbers rebounded**, indicating recovery and renewed confidence in travel. However, a sharp decline in tourists visiting Cape Town in June 2023 suggests a localized event or economic fluctuation affecting travel to the region.
+
+Overall, the seasonal pattern reveals **consistently higher tourist numbers during the middle of the year**, likely influenced by favorable weather and holiday periods, contrasting with lower visitation at the beginning of the year, coinciding with the end of the holiday season.

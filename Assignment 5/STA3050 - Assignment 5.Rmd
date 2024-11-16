@@ -1,0 +1,350 @@
+---
+title: "STA3050A - Assignment 5"
+author: "Chesia Anyika"
+date: "2024-07-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# QUESTION 1: Fitting an ARMA Model:
+
+**You are a data analyst tasked with modeling a time series using an ARMA model. Your objective is to understand the dynamics of the series and make future forecasts.**
+
+Packages: forecast and tseries
+
+**Tasks:**
+
+1\. Simulate a time series dataset of length 500 from an ARMA(2,1) model with AR parameters 0.5 and 0.3, and an MA parameter 0.4. Ensure you set a seed for reproducibility
+
+2\. Plot the simulated time series data and describe any patterns or characteristics you observe
+
+3\. Plot the ACF and PACF of the simulated ARMA data. Interpret the plots.
+
+4\. Fit an ARMA(2,1) model to the simulated data. Summarize the model and interpret the key output components, including parameter estimates and their significance, standard error, and model fit statistics
+
+5\. Perform the diagnostic checks on the fitted ARMA model, including residual analysis and autocorrelation checks
+
+6\. Using the fitted ARMA model, forecast the next 20 data points. Plot the forecasted values along with their confidence intervals.
+
+7\. Discuss the reliability of these forecasts based on the model diagnostics.
+
+## 1.1 Libraries
+
+```{r}
+# Load necessary packages
+library(forecast)
+library(tseries)
+```
+
+## 1.2 Simulate and Plot Time Series Data
+
+### 1.2.1 Simulation of Time-series Data
+
+I set a seed for reproducibility, then simulated a time series data-set of length 500 from an ARMA(2,1) model with autoregressive parameters 0.5 and 0.3 and a moving average parameter 0.4, and displayed the resulting simulated data.
+
+```{r}
+# Set seed for reproducibility
+set.seed(123)
+
+# 1. Simulate a time series dataset of length 500 from an ARMA(2,1) model
+arma_sim <- arima.sim(n = 500, list(ar = c(0.5, 0.3), ma = 0.4))
+
+#view results
+arma_sim
+```
+
+### 1.2.2 Plot the Simulated Data
+
+I then plotted the simulated data using the `plot.ts()` function from the `timeseries` package.
+
+```{r}
+# 2. Plot the simulated time series data
+plot.ts(arma_sim, main = "Simulated ARMA(2,1) Time Series")
+```
+
+**Interpretation**
+
+The plot of the Simulated Data lacks a clear trend or pattern, fluctuating randomly around zero. Furthermore the ARMA(2,1) model suggests that the current value depends on the previous two values and a random error term.
+
+This suggests that the data doesn't exhibit long-term growth or decline, making it suitable for time-dependent predictions or analysis.
+
+### 1.2.3 Plot ACF and PACF
+
+**Brief Definition**
+
+The ACF plot shows correlations of a time series with its lags, helping identify the need for a moving average component, while the PACF plot reveals direct correlations with lags, aiding in determining the auto-regressive component. Both are essential for selecting and tuning AR and MA models.
+
+```{r}
+# 3. Plot the ACF and PACF of the simulated ARMA data
+acf(arma_sim, main = "ACF of Simulated ARMA(2,1) Time Series")
+pacf(arma_sim, main = "PACF of Simulated ARMA(2,1) Time Series")
+```
+
+**Interpretation**\
+1. **ACF Plot**: In the plot, the first two bars (at lag 1 and lag 2) are above the significance lines. This means there's a statistically significant positive correlation between the current observation and the one at lag 1 and lag 2. After lag 2, all other bars fall within the confidence bounds (between the significance lines). These bounds suggest that correlations for lags beyond 2 are not statistically significant. The pattern of significant autocorrelations at specific lags (e.g., lag 1 and lag 2) is typical for an ARMA model. It indicates that only certain past values (at those lags) have a significant effect on current values in the time series. Past values beyond lag 2 have diminishing influence on future values, which aligns with the ARMA(2,1) structure.
+
+2\. **PACF Plot**: There are distinct spikes at lag values of 1 and 2 that stand above the significance lines. This suggests significant partial autocorrelation at these lags. After accounting for previous values (the autoregressive part), lags 1 and 2 contribute directly to the current value. Beyond lag 2, all other spikes fall within the significance boundaries, indicating that they are not statistically significant. This pattern aligns with an ARMA(2,1) process, where two prior time points (lags) have a direct effect on the current value, along with an error term influenced by one previous error term (the moving average part). The significant partial autocorrelations at lags 1 and 2 inform the order of an autoregressive model. When modeling time series data, considering these lags can lead to accurate predictions.
+
+## 1.3 ARMA Model
+
+### 1.3.1 Fit an ARMA Model
+
+An ARMA model combines auto-regressive and moving average components to capture both the dependence on past values and past forecast errors in a stationary time series. I plotted an ARMA model using the `arima()` function on the `arma_sim` data.
+
+```{r}
+# 4. Fit an ARMA(2,1) model to the simulated data
+arma_fit <- arima(arma_sim, order = c(2, 0, 1))
+summary(arma_fit)
+```
+
+**Interpretation**
+
+-   **Auto-regressive Coefficients:** The coefficients for the auto-regressive terms (AR1: -0.0463 and AR2: 0.6750) show how past values influence the current value. AR1 is close to zero, suggesting minimal effect of the first lag, while AR2 is significant, indicating a stronger influence from the second lag.
+
+-   **Moving Average Coefficient:** The MA1 coefficient (0.8909) reflects the impact of past errors on the current value, suggesting a strong influence of past residuals in the model.
+
+-   **Standard Errors:** Small standard errors (0.0826 for AR1, 0.0727 for AR2, and 0.0675 for MA1) indicate that the coefficient estimates are precise.
+
+-   **Model Fit Statistics:** The estimated variance of residuals ( $\sigma^2 = 0.924$ ) shows the average amount of error in the model's predictions. The log likelihood of -690.26 and the AIC of 1390.52 are measures of model fit, with lower AIC values generally indicating a better fit.
+
+-   **Error Measures:** The training set error metrics, including RMSE (0.961) and MAE (0.760), indicate that the model fits the data well, with relatively low errors. The minimal autocorrelation in residuals (ACF1 = 0.0038) suggests that the model adequately captures the time series dynamics, leaving residuals that resemble white noise.
+
+### 1.3.2 Perform Diagnostic Checks
+
+**Plot 1: Residuals Plots**
+
+These plots serve as diagnostic checks for your ARIMA(2,0,1) model. They help assess whether the model captures patterns in the residuals and whether the residuals follow a normal distribution.
+
+```{r}
+# 5. Perform diagnostic checks on the fitted ARMA model
+# Residual analysis
+checkresiduals(arma_fit)
+
+```
+
+**Interpretation**
+
+1.  **Residuals Over Time**:
+
+    -   The top plot shows the residuals (differences between observed values and model predictions) over time, while the y-axis represents the magnitude of the residuals.
+
+    -   We observe fluctuations around what appears to be a mean slightly above zero.
+
+    -   This suggests that the model may have a small bias since it's supposed to have a non-zero mean.
+
+    -   There are no obvious patterns or trends in this plot, which is generally good for residuals as it indicates randomness.
+
+2.  **Autocorrelation Function (ACF) Plot**:
+
+    -   The middle plot displays bars representing the correlation of the series with itself at different lags.
+
+    -   Most of the auto-correlations fall within the blue dashed confidence intervals.
+
+    -   This means there is little to no autocorrelation in the residuals.
+
+    -   Lack of significant autocorrelation aligns with ARIMA models, which assume no autocorrelation in the residuals.
+
+3.  **Histogram with Density Curve**:
+
+    -   The histogram on the bottom right compares the distribution of residual values against a normal distribution (the red curve).
+
+    -   The shape of the histogram closely follows the bell curve of a normal distribution.
+
+    -   However, there's a slight leftward skew and minor deviations from normality on both tails.
+
+    -   These deviations could indicate some issues with model fit or potential outliers.
+
+**Plot 2: ACF and PCF Plots**
+
+I used ACF and PACF plots as a diagnostics check, as follows:
+
+```{r}
+#acf and pacf tests
+acf(residuals_arma, main = "ACF of Residuals")
+pacf(residuals_arma, main = "PACF of Residuals")
+```
+
+**Interpretations**
+
+1.  **ACF Plot** : All bars are within these bounds and close to zero, especially after lag 1. This suggests that there is little to no autocorrelation in the residuals at different lags. Essentially, the residuals appear to be random (white noise). Lack of significant autocorrelation is a positive sign, as ARIMA models assume no autocorrelation in the residuals. The underlying model seems to have captured most of the signal in the data.
+2.  **PACF Plot**: The bars seem to be within the confidence interval boundaries, suggesting no strong autocorrelation. The lag values (5, 10, 15, 20, 25) correspond to the significant bars.The negative partial autocorrelation at lag 5 indicates an inverse relationship with the fifth lag. Overall, the model seems to capture most of the predictive structure in the data.
+
+**Plot 3: Box Test**
+
+The Box-Ljung test assesses whether there is significant autocorrelation in the residuals of a time series model, helping to determine if the model adequately captures the underlying data patterns or if further model adjustments are needed.
+
+```{r}
+# Ljung-Box test
+Box.test(residuals_arma, lag = 20, type = "Ljung-Box")
+```
+
+**Interpretation**
+
+The Box-Ljung test results indicate that with a p-value of $0.7242$, there is no significant evidence of autocorrelation in the residuals of the ARMA model, suggesting that the model adequately captures the time series dynamics and the residuals behave like white noise.
+
+### 1.3.3 Forecast the next 20 Data points
+
+I used the `forecast()` function to forecast the next 20 data points, as follows:
+
+```{r}
+# 6. Forecast the next 20 data points using the fitted ARMA model
+forecasts <- forecast(arma_fit, h = 20)
+forecasts
+```
+
+```{r}
+plot(forecasts, main = "20-Step Ahead Forecasts from ARMA(2,1) Model")
+```
+
+# Question 2: Fitting an ARIMA Model
+
+**You have another time series that appears to be non-stationary. Your task is to model this series using an ARIMA model to account for its integrated nature.**
+
+Packages: forecast and tseries
+
+1\. Simulate a time series data-set of length 500 from an ARIMA(1,1,1) model with AR parameters 0.65, and an MA parameter 0.4. Ensure you set a seed for reproducibility
+
+2\. Plot the simulated time series data and describe any patterns or characteristics you observe
+
+3\. Plot the ACF and PACF of the differenced simulated ARIMA data. Interpret the plots
+
+4\. Fit an ARMA(1,1,1) model to the simulated data. Summarize the model and interpret the key output components, including parameter estimates and their significance, standard error, and model fit statistics
+
+5\. Perform the diagnostic checks on the fitted ARIMA model, including residual analysis and autocorrelation checks
+
+6\. Using the fitted ARMA model, forecast the next 20 data points. Plot the fore-casted values along with their confidence intervals.
+
+7\. Discuss the reliability of these forecasts based on the model diagnostics
+
+## 2.1 Libraries
+
+```{r}
+# Load necessary libraries
+library(forecast)
+library(tseries)
+```
+
+## 2.2 Simulate and Plot Time-Series Data
+
+### 2.2.1 Simulation of Data
+
+I set a random seed for consistent results, simulated a time series of length 500 from an ARIMA(1,1,1) model with specified AR and MA parameters, converted the simulated data into a time series object, and then displayed the resulting time series.
+
+```{r}
+# Set seed for reproducibility
+set.seed(123)
+
+# Simulate an ARIMA(1,1,1) process
+n <- 500
+arima_model <- arima.sim(n = n, model = list(ar = 0.65, ma = 0.4, d = 1))
+
+# Convert the result to a time series object
+time_series <- ts(arima_model)
+
+#view results
+time_series
+```
+
+### 2.2.2 Plot Simulated Data
+
+I then plotted the time series for better comprehension of its trends using the `plot()` function.
+
+```{r}
+# Plot the simulated time series data
+plot(time_series, main = "Simulated ARIMA(1,1,1) Time Series", ylab = "Value", xlab = "Time")
+```
+
+**Interpretation**
+
+The data appears stationary, fluctuating around a constant mean without a clear trend or seasonal patterns. This suggests a good fit for an ARIMA(1,1,1) process. You can use this model for forecasting future values.
+
+### 2.2.3 Plot ACF and PACF
+
+I then plotted the ACF and PACF as follows:
+
+```{r}
+# Differencing the data to achieve stationarity
+diff_time_series <- diff(time_series)
+
+# Plot ACF and PACF
+acf(diff_time_series, main = "ACF of Differenced Data")
+pacf(diff_time_series, main = "PACF of Differenced Data")
+
+```
+
+**Interpretation**
+
+1.  **ACF Plot**: The significant autocorrelation at lag 0 suggests that the differenced data exhibits a pattern related to its own recent values.
+2.  **PACF Plot:** Most bars fall within the significance boundaries, suggesting no strong partial autocorrelations at most lags. However, there's a bar extending just beyond the upper boundary at lag 1. This indicates a significant positive partial autocorrelation at that lag.
+
+## 2.3 ARMA Model
+
+### 2.3.1 Fit ARMA (1,1,1) Model
+
+```{r}
+# Fit an ARMA(1,1) model to the differenced data
+fit <- Arima(time_series, order = c(1, 1, 1))
+
+# Summarize the model
+summary(fit)
+```
+
+**Interpretation**
+
+The ARIMA(1,1,1) model for the series shows that the first-order autoregressive coefficient (ar1) is -0.5197, and the first-order moving average coefficient (ma1) is 0.7277, both statistically significant given their small standard errors (0.1285 and 0.1044, respectively).
+
+The estimated variance of the residuals (σ²) is 1.131, indicating the model's error variance. The log likelihood is -737.76, and the AIC, AICc, and BIC values (1481.51, 1481.56, and 1494.15, respectively) suggest the model's fit, with lower values generally indicating a better fit.
+
+Training set error measures, including ME, RMSE, MAE, MPE, and MAPE, reflect the model's accuracy, with relatively low values indicating good predictive performance. The minimal autocorrelation in residuals (ACF1 = -0.0359) suggests that the model adequately captures the time series dynamics, leaving residuals that resemble white noise.
+
+### 2.3.2 Diagnostic Checks
+
+**Plot 1: Residuals Plot**
+
+```{r}
+# Residual Analysis
+checkresiduals(fit)
+```
+
+**Interpretation**
+
+1\. **Top Plot (Residuals Over Time)**: The residuals fluctuate randomly around zero with no visible patterns or trends, indicating that the model has captured the data's structure well. The lack of discernible patterns suggests that there are no systematic errors left in the residuals.
+
+2\. **Bottom Left Plot (ACF of Residuals)**: The autocorrelation function (ACF) plot shows the correlation of residuals with their own lagged values. Most bars fall within the blue dashed confidence intervals, indicating that the residuals exhibit little to no significant autocorrelation. This suggests that the residuals resemble white noise, which is a desirable outcome, meaning the model has effectively accounted for the time series dependencies.
+
+3\. **Bottom Right Plot (Histogram with Density Curve)**: The histogram of residuals, overlaid with a normal density curve, shows that the residuals are approximately normally distributed. There are minor deviations from normality, but overall, the residuals follow a bell-shaped curve, supporting the assumption of normally distributed residuals.
+
+In summary, these diagnostic plots indicate that the ARIMA(1,1,1) model is a good fit for the data, with residuals behaving like white noise and following an approximate normal distribution. This suggests that the model is well-specified and has captured the underlying patterns in the time series effectively.
+
+**Plot 2: ACF Plot** **of Residuals**
+
+```{r}
+# ACF of residuals
+acf(residuals(fit), main = "ACF of Residuals")
+```
+
+**Interpretations**
+
+All spikes fall within the significance boundaries, indicating randomness in residuals. No systematic pattern or trend outside these bounds suggests a good model fit. Residuals are not predictable from one another over time
+
+### 2.3.3 Forecast the next 20 Data Points
+
+I used my model to forecast the next 20 data points as follows:
+
+```{r}
+# Forecast the next 20 data points
+forecasted_values <- forecast(fit, h = 20)
+
+#view results
+forecasted_values
+```
+
+Furthermore, I plotted the forecasted data points for better understanding.
+
+```{r}
+# Plot forecasted values with confidence intervals
+plot(forecasted_values, main = "Forecasted Values with 95% Confidence Intervals")
+```

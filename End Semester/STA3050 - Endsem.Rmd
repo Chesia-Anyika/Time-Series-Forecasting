@@ -1,0 +1,346 @@
+---
+3---
+title: "STA3050 - Endsem"
+author: "Chesia Anyika"
+date: "2024-08-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Questions
+
+PACKAGES: forecast and tseries
+
+TASKS:
+
+1\. Load the AirPassengers dataset in R. (2 marks)
+
+2\. Plot the time series. Comment on any visible trends, seasonality, or anomalies that might affect your modeling strategy. (3 marks)
+
+3\. Check the stationarity of the AirPassengers time series. (3 marks)
+
+4\. If the series is non-stationary, apply necessary transformations to make it stationary. Show the transformed series. (3 marks)
+
+5\. Use the ACF and PACF plots to suggest possible values of 𝑝 and 𝑞 for an ARMA model on the stationary series. (3 marks)
+
+6\. Think about the seasonality in the original series. How might this influence your choice of 𝑝 and 𝑞? (3 marks)
+
+7\. Based on your plots and seasonal considerations, fit an appropriate ARMA model. (4 marks)
+
+8\. Fit an ARIMA model to the original AirPassengers series. Discuss your process to automatically select the best model. (4 marks)
+
+9\. Display the model summary and interpret the results. Think about the ARIMA specifications of the model and if you agree with the choice. (5 marks)
+
+10\. Perform diagnostic checks on your fitted ARIMA model. Are there any hidden patterns that might have been missed? (3 marks)
+
+11\. Discuss the results of your diagnostic checks. Are there any indications that your model is not adequate? How would you address these issues? (4 marks)
+
+12\. Generate and plot a 12-month forecast using your fitted ARIMA model. Consider the uncertainty in your forecast. (5 marks)
+
+13\. Interpret the forecast results. How accurate are they, and what do they suggest about future values of the series? Discuss the limitations and potential improvements. (5 marks)
+
+14\. Fit a seasonal ARIMA model to the AirPassengers dataset. (3 marks)
+
+15\. Compare the seasonal ARIMA model with the non-seasonal ARIMA model in terms of AIC/BIC values and forecast accuracy. Consider if seasonality is being captured adequately by the seasonal model. (5 marks)
+
+# Execution
+
+## 1.1 Preliminaries
+
+### 1.1.1 Libraries and Data Importation
+
+First, I imported the necessary libraries, as follows:
+
+```{r}
+#Libraries
+library(datasets)
+library(tseries)
+library(forecast)
+library(tidyverse)
+```
+
+I imported the `AirPassengers` data-set from the `datasets` package, then printed it's head and a summary of its description.
+
+```{r}
+# Load the AirPassengers data
+data("AirPassengers")
+
+# Print the first few rows of the dataset
+head(AirPassengers)
+#?AirPassengers
+```
+
+### 1.1.2 Visualisation of Time Series
+
+The data represents monthly totals of international airline passenger numbers from 1949 to 1960, from Box & Jenkins. It is formatted as a monthly time series object, in thousands. I potted the data using a line plot for a better understanding of its structure.
+
+```{r}
+# Plot the AirPassengers data
+plot(AirPassengers, main = "AirPassengers Data", ylab = "Number of Passengers", xlab = "Year")
+```
+
+**Observations**
+
+-   The time series depicts an overarching upward trend in terms of number of passengers
+
+-   There appears to be consistent seasonal cycles per year of an upward trend in passengers at the beginning of the year that continues until near the end of the year, at which there is a sharp decline in the number of passengers.
+
+For a better understanding of the potential trend and seasonality components, I plotted a decomposed time series with four components:
+
+1.  **Observed**: This is the original time series data, showing the number of passengers over time
+2.  **Trend**: This shows the long-term trend of the time series.
+3.  **Seasonal**: This shows the seasonal component of the data.
+4.  **Random**: This shows the residual component, which depicts random noise not explained by trend or seasonal components.
+
+```{r}
+# Decompose the time series
+decomposed <- decompose(AirPassengers)
+plot(decomposed)
+```
+
+**Interpretation**
+
+1.  **Trend Component:**
+
+    The trend component shows a steady increase in the number of passengers over the period from 1949 to 1960. This indicates a growing demand for air travel during this time.
+
+2.  **Seasonal Component:**
+
+    The seasonal component reveals a clear, repeating pattern each year. Specifically, the number of passengers tends to rise at the beginning of the year, peaks around mid-year, and then declines sharply towards the end of the year. This suggests that certain times of the year consistently see higher or lower numbers of passengers, possibly due to holidays, vacation seasons, or other cyclical factors.
+
+3.  **Residual Component:**
+
+    The residual component displays the irregularities that are not captured by the trend or seasonal components. Ideally, the residuals should be small and randomly distributed, indicating that the trend and seasonal components have effectively captured the systematic patterns in the data.
+
+**Impact on Modeling Strategy**
+
+1.  **Trend and Seasonality:**
+
+    Since the data has both trend and seasonality, it's important to use a model that can account for these features. ARIMA models with seasonal components (SARIMA) are appropriate for this purpose.
+
+2.  **Stationarity:**
+
+    We should ensure the time series is stationary before fitting a chosen model. Differencing (both regular and seasonal) may be required to achieve stationarity.
+
+3.  **Residuals:**
+
+    After fitting a chosen model, we should check the residuals to ensure that they are white noise. This confirms that the model has effectively captured the trend and seasonal patterns.
+
+## 1.2 Stationarity
+
+### 1.2.1 ADF Test
+
+I used an Augmented Dickey-Fuller (ADF) test to determine whether a given time series is stationary. Stationarity means that the statistical properties of the time series, such as mean, variance, and autocorrelation, are constant over time.
+
+I used the `adf.test()` function from the `tseries` library.
+
+```{r}
+# Perform a stationarity test (Augmented Dickey-Fuller test)
+adf.test(AirPassengers)
+```
+
+**Interpretation**
+
+Given the test statistic (-7.3186) and the very small p-value (0.01 or smaller), we reject the null hypothesis that the time series does not exhibit stationarity. This means that the `AirPassengers` time series is stationary at the tested level.
+
+As the data is already stationary, there is no need to perform transformations on the data to make it stationary. A transformation we could have used is **first order** **differencing**, which removes trend and seasonality components to achieve stationarity. Applying this to already stationary data would leas to **over-differencing**, which would add unnecessary complexity and noise to our data.
+
+We can however apply seasonal differencing to eliminate the clear seasonal trend in the data as follows:
+
+```{r}
+#Apply seasonal differencing 
+seasonal_diff_data <- diff(AirPassengers, lag = 12)  # Seasonal differencing with lag of 12
+
+# Check if differencing has made the series stationary
+adf.test(seasonal_diff_data)
+```
+
+## 1.3 ACF and PACF
+
+### 1.3.1 Plots
+
+The ACF plot shows the correlation between the time series and lagged versions of itself. The PACF plot shows the correlation between the time series and lagged versions of itself, controlling for the values of the time series at all shorter lags.
+
+```{r}
+# Plot ACF and PACF for the differenced series
+par(mfrow = c(1, 2)) # Set up the plotting area to display two plots side by side
+Acf(seasonal_diff_data, main = "ACF of Stationary Series")
+Pacf(seasonal_diff_data, main = "PACF of Stationary Series")
+```
+
+**Interpretations** 1. **ACF (Autocorrelation Function) Plot:**
+
+-   There are significant spikes at lags 1 and 2, and the correlations gradually decline as the lag increases. This gradual decline suggests a possible moving average (MA) component.
+
+2.  **PACF (Partial Autocorrelation Function) Plot:**
+
+-   There is a significant spike at lag 1, followed by much smaller or insignificant spikes at other lags. This significant spike at lag 1 suggests a possible autoregressive (AR) component of order 1.
+
+Based on the ACF and PACF plots:
+
+-   For the ACF plot, the significant spikes at lags 1 and 2 indicate that an MA component might be present, with $q=2$ being a reasonable choice.
+
+-   For the PACF plot, the significant spike at lag 1 indicates that an AR component might be present, with $p=1$ being a reasonable choice.
+
+    Thus, a possible ARMA model could be ARMA(1, 2), where $p=1$ and $q=2$.
+
+### 1.3.2 Seasonality effect on Model Selection
+
+The original series exhibits a clear seasonal pattern, with consistent cycles throughout the year. This suggests that the data may be influenced by seasonal effects, which can affect the performance and appropriateness of an ARMA model.
+
+**Impact on AR and MA Terms:**
+
+**Autoregressive Component (AR):** The AR component captures the impact of past values on the current value. In the presence of seasonality, the AR term should account for the seasonality's influence. For instance, if the seasonal period is 12 months, then including seasonal AR terms (e.g., AR(12)) could be beneficial to capture the seasonality effectively. Simply using AR(1) may not be sufficient to account for seasonal effects.
+
+**Moving Average Component (MA):** The MA component accounts for the noise or shock terms that impact the series. Seasonal effects can also affect the choice of MA terms. In a seasonal context, including seasonal MA terms (e.g., MA(12)) can help in capturing the seasonal noise or patterns. Using MA(2) without considering seasonal effects might miss important seasonal patterns present in the data.
+
+**Adjusted Model Selection:**
+
+Given the observed seasonality, it may be necessary to consider a Seasonal ARMA (SARMA) or Seasonal ARIMA (SARIMA) model, which includes seasonal AR and MA terms. For example, if seasonality has a period of 12, you might explore SARIMA(1,0,2)(1,0,2)[12] where the seasonal components are explicitly modeled. This approach would address both the autoregressive and moving average effects with a seasonal structure.
+
+## 1.4 ARMA, ARIMA and SARIMA Models
+
+### 1.4.1 ARMA model
+
+I then fit an ARMA Model using our chosen p and q parameters, as follows:
+
+```{r}
+# Fit the ARMA(1, 2) model
+arma_model <- Arima(seasonal_diff_data, order=c(1, 0, 2))
+
+# Display the model summary
+summary(arma_model)
+
+```
+
+**Interpretation**
+
+The ARMA(1,0,2) model provides a reasonable fit to the data, with a significant AR component (\`ar1\` = 0.7815) and MA components (\`ma1\` = -0.1537, \`ma2\` = 0.1547) that capture short-term dependencies. The residual variance (\`sigma\^2\` = 130.5) is relatively moderate, and the AIC (1024.56) and BIC (1038.97) values suggest that the model balances fit and complexity. The error measures indicate reasonable predictive accuracy, with RMSE = 11.2509 and MAE = 8.6155, though the issues with MPE (-Inf) and MAPE (Inf) calculations suggest some anomalies in the data or potential issues with the model fit that may need further investigation.
+
+### 1.4.2 ARIMA Model
+
+I then used the `auto.arima()` function from the `forecast` package to automatically select the best ARIMA model. This function uses AIC (Akaike Information Criterion) and BIC (Bayesian Information Criterion) to choose the best model by evaluating various combinations of ARIMA parameters.
+
+```{r}
+# Automatically fit the best ARIMA model
+best_model <- auto.arima(AirPassengers)
+
+# Display the model summary
+summary(best_model)
+
+```
+
+**Interpretation**
+
+The ARIMA(2,1,1)(0,1,0)[12] model fits the AirPassengers data reasonably well. The AR coefficients (`ar1` = 0.5960, `ar2` = 0.2143) and MA coefficient (`ma1` = -0.9819) capture the dependencies in the data effectively. The model's residual variance (`sigma^2` = 132.3) is moderate, and the AIC (1017.85) and BIC (1029.35) values suggest a good balance between fit and complexity. Training set error measures indicate generally good predictive accuracy, though the MPE (0.4207) and MAPE (2.8005) suggest some bias and room for improvement in prediction accuracy.
+
+#### 1.4.2.1 Diagnostic Check
+
+I then checked the residuals of the fitted model as a diagnostic check for the goodness of fit of the model.
+
+```{r}
+# Check residuals of the fitted model
+checkresiduals(best_model)
+
+```
+
+**Interpretation**
+
+1.  **Residuals over Time (Top Plot):** The residuals appear to fluctuate around the zero line without any clear pattern or trend, which suggests that the model has captured most of the underlying structure of the data. This is a good sign as ideally, we want our residuals to look like white noise.
+
+2.  **ACF of Residuals (Bottom Left Plot):** The Autocorrelation Function (ACF) plot for the residuals shows that most of the autocorrelations are within the blue dashed confidence bands, indicating that they are not significantly different from zero at the 95% confidence level. This implies that there is little to no autocorrelation in the residuals, which is another good sign. It means that there is no information in the residuals that can be used to improve the model.
+
+3.  **Histogram of Residuals (Bottom Right Plot):** The histogram with a superimposed normal distribution curve (in black) assesses whether the residuals follow a normal distribution. The shape of the histogram and its alignment with the normal curve suggest that while there may be slight deviations from normality (slight skewness), overall, it approximates a normal distribution reasonably well. This is desirable as many statistical tests assume that the residuals are normally distributed.
+
+    These plots collectively indicate that this ARIMA model fits well as it produces residuals with no apparent patterns or trends over time, minimal autocorrelation, and an approximate normal distribution---all characteristics of an adequate model fit for time series analysis.
+
+#### 1.4.2.2 Forecast
+
+I then used the model to forecast values for the next 12 months, as follows:
+
+```{r}
+# Forecast using the best ARIMA model
+forecasted_values <- forecast(best_model, h=12)  # Forecast for the next 12 months
+
+# Plot the forecast
+autoplot(forecasted_values) + ggtitle("Forecast from Best ARIMA Model")
+
+```
+
+**Interpretation**
+
+The Prediction Interval is very close to the point forecast in the above plot, indicating very low uncertainty in the given forecast, suggesting reliability of the fore-casted point values. The forecasted values also seem to mimic the trend and seasonality of the data accurately, suggesting an accurate model.
+
+### 1.4.3 SARIMA Model
+
+I then fit a SARIMA Model on the seasonally differenced data as follows:
+
+```{r}
+# Fit a Seasonal ARIMA model with seasonal period 12
+sarima_model <- Arima(seasonal_diff_data, order=c(1, 0, 2), seasonal=c(1, 0, 2), include.drift=TRUE)
+
+# Display the model summary
+summary(sarima_model)
+
+```
+
+**Interpretation**\
+
+The SARIMA(1,0,2)(1,0,2)[12] model fits the `seasonal_diff_data` with a combination of autoregressive and moving average components both in the non-seasonal and seasonal parts. The drift term suggests a slight upward trend in the series. The AR component (`ar1` = 0.7119) and the seasonal AR component (`sar1` = -0.8958) capture significant dependencies in the data, while the MA components (`ma1` = -0.1282, `ma2` = 0.1739; `sma1` = 0.7630, `sma2` = -0.0483) address the error term influences. The model's residual variance (`sigma^2` = 126.3) and fit statistics (AIC = 1024.94, BIC = 1050.88) suggest a good balance between fit and complexity. Error measures indicate generally good predictive accuracy, though issues with MPE and MAPE calculations suggest some anomalies in the data that might need further examination.
+
+#### 1.4.3.1 Diagnostic Check
+
+I plotted the model's residuals as a diagnostic check, to examine the goodness of fit of the model.
+
+```{r}
+# Check residuals
+checkresiduals(sarima_model)
+```
+
+**Interpretation**
+
+1.  **Residuals over Time (Top Plot):** The residuals appear to fluctuate around the zero line without any clear pattern or trend, which suggests that the model has captured most of the underlying structure of the data. This is a good sign as ideally, we want our residuals to look like white noise.
+
+2.  **ACF of Residuals (Bottom Left Plot):** The Autocorrelation Function (ACF) plot for the residuals shows that most of the autocorrelations are within the blue dashed confidence bands, indicating that they are not significantly different from zero at the 95% confidence level. This implies that there is little to no autocorrelation in the residuals, which is another good sign. It means that there is no information in the residuals that can be used to improve the model.
+
+3.  **Histogram of Residuals (Bottom Right Plot):** The histogram with a superimposed normal distribution curve (in black) assesses whether the residuals follow a normal distribution. The shape of the histogram and its alignment with the normal curve suggest that while there may be slight deviations from normality (slight skewness), overall, it approximates a normal distribution reasonably well. This is desirable as many statistical tests assume that the residuals are normally distributed.
+
+    These plots collectively indicate that this ARIMA model fits well as it produces residuals with no apparent patterns or trends over time, minimal autocorrelation, and an approximate normal distribution---all characteristics of an adequate model fit for time series analysis.
+
+#### 1.4.3.2 Forecast
+
+I then used the model to forecast values for the next 12 months, as follows:
+
+```{r}
+# Plot forecast
+forecasted_values_sarima <- forecast(sarima_model, h=12)
+autoplot(forecasted_values_sarima) + ggtitle("Forecast from SARIMA(1,0,2)(1,0,2)[12] Model")
+```
+
+**Interpretation**
+
+The prediction interval is wide, exhibiting an approximately 20 point difference from the point forecast in the positive and negative direction. This implies a moderate level of uncertainty with the model's predictions, suggesting that the model may not be the best fir for forecasting the time series data.
+
+### 1.4.3 Comparison
+
+I then compared the forecast accuracy of both models using AIC and BIC diagnostics. **AIC (Akaike Information Criterion)** measures the trade-off between model fit and complexity, with lower values indicating a better balance, while **BIC (Bayesian Information Criterion)** similarly evaluates model fit and complexity but imposes a stronger penalty for additional parameters, with lower values suggesting a more optimal model.
+
+```{r}
+# Compare AIC/BIC
+AIC(best_model, sarima_model)
+BIC(best_model, sarima_model)
+
+```
+
+**AIC Diagnostic**
+
+The model identified as ARIMA is preferred over the SARIMA model based on AIC values. The lower AIC for the ARIMA (1017.848) suggests that it is more efficient in explaining the data while penalizing less for complexity. The SARIMA model, with an AIC of 1024.937, introduces additional complexity that is not justified by a proportional increase in fit, as indicated by its higher AIC.
+
+**BIC Diagnostic**
+
+The model identified as ARIMA is preferred over the SARIMA model based on BIC values. The lower BIC for the ARIMA (1029.348) suggests that it achieves a better balance between fit and complexity, making it more efficient. The SARIMA model, with a BIC of 1050.882, shows that the additional complexity does not provide sufficient improvement in model fit to justify the increased penalty, indicating that the "best_model" is the more optimal choice.
+
+**Summary** Thus, the ARIMA is preferred over the SARIMA model based on both AIC and BIC values.

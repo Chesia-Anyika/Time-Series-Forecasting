@@ -1,0 +1,1035 @@
+---
+title: "STA3050 - Assignment 2"
+author: "Chesia Anyika"
+date: "2024-05-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r}
+library(tidyverse)
+library(ggpubr)
+```
+
+# Question 1
+
+The following table gives the gross domestic product (GDP) in 100 million for a certain country from 2010 to 2020:
+
+| Year    | 2011 | 2012 | 2013 | 2014 | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 |
+|---------|------|------|------|------|------|------|------|------|------|------|
+| **GDP** | 35   | 37   | 51   | 54   | 62   | 64   | 74   | 71   | 83   | 80   |
+
+i\. Fit a trend line for GDP data and find trend values with the help of trend line.
+
+ii\. Find forecast errors.
+
+iii\. Use best-fit trend model to predict the country's GDP for 2022.
+
+## Create Table in Long Format
+
+First, I created the table in Long format.
+
+```{r}
+#define parameters
+Year.t <- seq(2011,2020)
+GDP.Yt <- c(35, 37, 51, 54, 62, 64, 74, 71, 83, 80)
+
+#create table
+data <- data.frame(Year.t, GDP.Yt)
+
+#View result
+data
+```
+
+## Part i. Trend Line for GDP data
+
+We can use **Normal Equations** to estimate the **constants** of a linear and quadratic model, and thus fit both linear and quadratic tends to the given GDP data.
+
+The **Normal Equations** are a set of simultaneous linear equations derived from the least squares criterion, used to estimate the parameters $\beta_0$ (intercept), $\beta_1$ (slope), and $\beta_2$​ (quadratic term) in the case of linear and quadratic regression models.
+
+### 1. Linear Trend
+
+For a **Linear Regression Model** $Y_t = \beta_0 + \beta_1t$, the normal equations are:
+
+$$
+\sum Y_t = n \beta_0 + \beta_1 \sum t\\
+\sum tY_t = \beta_0 \sum t + \beta_1 \sum t^2
+$$
+
+> Where:
+>
+> -   $\beta_0$ is the intercept, the predicted value of Y when t = 0.
+>
+> -   $\beta_1$ is the slope of the trend line.
+
+For ease of calculation, we take the following transformations in t:
+
+$$
+X_t =
+\begin{cases}
+\frac{t - middle\ value}{interval \ in \ t \ values} & \text{when n is odd}\\
+\frac{t - average\ of\ two \ middle\ values}{half\ of \ interval \ in \ t \ values} & \text{when n is even}
+\end{cases}
+$$
+
+I defined this as a function as follows:
+
+```{r}
+#create function to compute Xt
+compute_Xt <- function(t) {
+  n <- length(t)
+  interval <- diff(range(t)) / (n - 1)
+  
+  if (n %% 2 == 1) {
+    middle_value <- median(t)
+    X_t <- (t - middle_value) / interval
+  } else {
+    middle_values <- sort(t)[c(n / 2, n / 2 + 1)]
+    middle_value_avg <- mean(middle_values)
+    half_interval <- interval / 2
+    X_t <- (t - middle_value_avg) / half_interval
+  }
+  
+  return(X_t)
+}
+```
+
+Thus, we get the following transformed normal equations:
+
+$$
+\sum Y_t = n \beta_0 + \beta_1 \sum X_t\\
+\sum X_tY_t = \beta_0 \sum X_t + \beta_1 \sum X_t^2
+$$
+
+With these equations, using **Year as** $t$ and GDP **as** $Y_t$ we need to compute $\sum Y_t$, $\sum X_t$, $\sum X_tY_t$ and $\sum X_t^2$. I thus created these respective columns in the `data` table as follows:
+
+```{r}
+#compute the Xt column
+data$Xt <- compute_Xt(Year.t)
+
+#compute XtYt
+data$XtYt <- (data$Xt)*(data$GDP.Yt) 
+
+#compute Xt^2
+data$Xt.sq <- (data$Xt)^2
+
+#View results
+data[3:5]
+```
+
+I then computed the sums of the respective columns:
+
+```{r}
+#compute sums of relevant columns
+Yt.sum <- sum(data$GDP.Yt)
+Xt.sum <- sum(data$Xt)
+XtYt.sum <- sum(data$XtYt)
+Xtsq.sum <- sum(data$Xt.sq)
+
+#View sums
+cat('\n Sum of Yt: ', Yt.sum, '\n Sum of Xt: ', Xt.sum, '\n Sum of XtYt: ',XtYt.sum, '\n Sum of Xt.sq: ',Xtsq.sum)
+```
+
+I used these computed values to solve for $\beta_0$ and $\beta_1$ using the normal equations, and obtained the following:
+
+$$
+611 = 10 \beta_0 + 0 \beta_1 \\
+889 = 0 \beta_0 + 330 \beta_1
+$$
+
+I solved for the simultaneous equations using the **matrix method**, by rewriting the equations as the following matrices:
+
+$$
+\begin{pmatrix}
+10 & 0 \\
+0 & 330
+\end{pmatrix}
+\begin{pmatrix}
+\beta_0 \\
+\beta_1
+\end{pmatrix}
+=
+\begin{pmatrix}
+611 \\
+889
+\end{pmatrix}
+$$
+
+I used the `solve()` function to compute this as follows:
+
+```{r}
+# Define the coefficients matrix
+A <- matrix(c(10, 0, 0, 330), nrow = 2, byrow = TRUE)
+
+# Define the constants vector
+b <- c(611, 889)
+
+# Solve for beta
+beta <- solve(A, b)
+
+# Display the solutions
+beta_0 <- beta[1]
+beta_1 <- beta[2]
+
+cat("beta_0 =", beta_0, "\n")
+cat("beta_1 =", beta_1, "\n")
+```
+
+I then input $\beta_0$ and $\beta_1$ in the estimator equation $\hat Y_t = \hat \beta_0 + \hat \beta_1 X_t$, to get the linear trend as follows:
+
+$$
+\hat Y_t = 61.1 + 2.6939 X_t\\
+$$To transform this to be in terms of t, I defined two functions that compute the parameters for the $X_t$ function in the case that $n$ is even, as per the formula:
+
+$$
+X_t[n\ is\ even] = \frac{t - avg\ of\ middle\ values}{half\ interval\ in \ t \ values}
+$$
+
+```{r}
+# Function to compute average of the middle values
+compute_middle_value_avg <- function(t) {
+  n <- length(t)
+  
+  if (n %% 2 == 1) {
+    middle_value_avg <- median(t)
+  } else {
+    middle_values <- sort(t)[c(n / 2, n / 2 + 1)]
+    middle_value_avg <- mean(middle_values)
+  }
+  
+  return(middle_value_avg)
+}
+
+# Function to compute half the interval between the middle values
+compute_half_interval <- function(t) {
+  n <- length(t)
+  interval <- diff(range(t)) / (n - 1)
+  
+  if (n %% 2 == 0) {
+    half_interval <- interval / 2
+  } else {
+    half_interval <- NA
+  }
+  
+  return(half_interval)
+}
+```
+
+I then computed the parameters of the function as follows:
+
+```{r}
+#compute parameters
+mid <- compute_middle_value_avg(data$Year.t)
+interval <- compute_half_interval(data$Year.t)
+
+#view results
+cat('\n Average of Middle Values: ', mid, '\n Half Interval of middle Values: ', interval)
+```
+
+Thus my $X_t$ function is:
+
+$$
+X_t = \frac{t-2015.5}{0.5}
+$$
+
+I can hence rewrite my final estimator equation as:
+
+$$
+\hat Y_t = \hat \beta_0 + \hat \beta_1(\frac{t-2015.5}{0.5})
+$$
+
+I computed this for each row entry and added the values as a column in the `data` data- frame.
+
+```{r}
+#compute estimated values
+data$Yt.hat <- beta_0 + (beta_1*((data$Year.t)-mid)/interval)
+
+#View results
+data[6]
+```
+
+### 2. Quadratic Trend
+
+For a **Quadratic Regression Model** $Y_t = \beta_0 + \beta_1t + \beta_2t^2$, the normal equations are:
+
+$$
+\sum Y_t = n \beta_0 + \beta_1 \sum t + \beta_2 \sum t^2 \\
+\sum t Y_t = \beta_0 \sum t + \beta_1 \sum t^2 + \beta_2 \sum t^3 \\
+\sum t^2 Y_t = \beta_0 \sum t^2 + \beta_1 \sum t^3 + \beta_2 \sum t^4
+$$
+
+For ease of computation, we may take the following transformations in t:
+
+$$
+X_t =
+\begin{cases}
+\frac{t - middle\ value}{interval \ in \ t \ values} & \text{when n is odd}\\
+\frac{t - average\ of\ two \ middle\ values}{half\ of \ interval \ in \ t \ values} & \text{when n is even}
+\end{cases}
+$$
+
+I defined this function in R as `compute_Xt`in the previous section. Thus we get the following transformed normal equations:
+
+$$
+\sum Y_t = n \beta_0 + \beta_1 \sum Xt + \beta_2 \sum X^2_t \\
+\sum X_t Y_t = \beta_0 \sum X_t + \beta_1 \sum X_t^2 + \beta_2 \sum X_t^3 \\
+\sum X_t^2 Y_t = \beta_0 \sum X_t^2 + \beta_1 \sum X_t^3 + \beta_2 \sum X_t^4\\ 
+$$
+
+With these equations, taking **Year** as $t$ and **GDP** as $Y_t$, we need to compute $\sum Yt$, $\sum Xt$, $\sum X_tY_t$, $\sum X_t^2$, $\sum X_t^2Y_t$, $\sum X_t^3$ and $\sum X_t^4$.
+
+As the first four parameters in the above list were previously calculated when computing the linear trend, I computed the remaining 3 parameters and created their respective tables in the `data` table as follows:
+
+```{r}
+#compute Xt.sqYt
+data$Xt.sqYt <- (data$Xt.sq)*(data$GDP.Yt)
+
+#compute Xt.cube
+data$Xt.cube <- (data$Xt)^3
+
+#compute Xt.four
+data$Xt.four <- (data$Xt)^4
+
+#view the data results
+data[7:9]
+```
+
+I then got the sum of the computed parameters.
+
+```{r}
+#compute Xt.sqYt
+Xt.sqYt.sum <- sum(data$Xt.sqYt)
+
+#compute Xt.cube
+Xt.cube.sum <- sum(data$Xt.cube)
+
+#compute Xt.four
+Xt.four.sum <- sum(data$Xt.four)
+
+#view the results
+cat('\n Sum of Xt.sqYt: ', Xt.sqYt.sum, '\n Sum of Xt.cube: ', Xt.cube.sum, '\n Sum of Xt.four: ', Xt.four.sum )
+
+
+```
+
+I used these computed values to solve for $\beta_0$, $\beta_1$ and $\beta_2$ in the normal equations, as follows:
+
+$$
+611 = 10\beta_0 + 0\beta_1 + 330\beta_2 \\
+889 = 0\beta_0 + 330\beta_1 + 0\beta_2\\
+19523 = 330 \beta_0 + 0\beta_1 + 19338\beta_2
+$$
+
+I solved these simultaneous equations using the matrix method, by rearranging them into the following system of matrices:
+
+$$
+\begin{pmatrix}
+10 & 0 & 330 \\
+0 & 330 & 0 \\
+330 & 0 & 19338
+\end{pmatrix}
+\begin{pmatrix}
+\beta_0 \\
+\beta_1 \\
+\beta_2
+\end{pmatrix} =
+\begin{pmatrix}
+611 \\
+889 \\
+19523
+\end{pmatrix}
+$$
+
+I used the `solve()` function to solve these as follows:
+
+```{r}
+# Define the coefficients matrix
+A <- matrix(c(10, 0,330, 0, 330, 0, 330, 0, 19338), nrow = 3, byrow = TRUE)
+
+# Define the constants vector
+b <- c(611, 889, 19523)
+
+# Solve for beta
+beta <- solve(A, b)
+
+# Display the solutions
+beta_0 <- beta[1]
+beta_1 <- beta[2]
+beta_2 <- beta[3]
+
+cat("beta_0 =", beta_0, "\n")
+cat("beta_1 =", beta_1, "\n")
+cat("beta_2 =", beta_2, "\n")
+```
+
+I then input $\beta_0$, $\beta_1$ and $\beta_2$ into the estimator equation $\hat Y_t = \beta_0 + \beta_1 X_t + \beta_2 X_t^2$, to get:
+
+$$ \hat Y_t = 63.6 + 2.69 X_t -0.076 X_t^2
+$$
+
+I then transformed the equation in terms of t as per the formula:
+
+$$
+X_t = \frac{t - 2015.5}{0.5}
+$$
+
+Thus the final estimator equation can be written as follows:
+
+$$\hat Y_t = 63.6 + 2.69 (\frac{t - 2015.5}{0.5}) -0.076 (\frac{t - 2015.5}{0.5})^2
+$$
+
+I computed this for each row entry, and added the results to a new column in the `data` table.
+
+```{r}
+#compute the equation
+data$Yt.hat2 <- beta_0 + (beta_1*(data$Year.t - mid)/interval) + (beta_2*((data$Year.t - mid)/interval)^2)
+
+#view the results
+data[10]
+```
+
+### 3. Exponential trend
+
+The **exponential trend** is represented by the following equation:
+
+$$
+Y_t = a\ b^{t}
+$$
+
+> Where
+>
+> -   $Y$ is the time series data
+>
+> -   $t$ is the time.
+>
+> -   $a$ and $b$ are constants.
+
+We can transform the exponential trend model by taking the **natural logarithm on both sides of the equation**, as follows:
+
+$$
+ln(Y_t) = ln(a) + t\ ln(b)
+$$
+
+This is done because when using the equation $Y_t = a\ b^{t}$, calculating exponentiation can lead to very large values especially for t. In R, these values can exceed the maximum representable numbers, thus resulting in 'Inf' results.
+
+The constants $ln(a)$ and $ln(b)$ can be solved for simultaneously using the following normal equations:
+
+$$
+\sum ln(Y_t) = n\ ln(a) + ln(b) \sum t\\
+\sum t\ ln(Y_t) = ln(a) \sum t + ln(b) \sum t^2
+$$
+
+For ease of computation, we can transform the normal equations in t as follows:
+
+$$
+X_t =
+\begin{cases}
+\frac{t - middle\ value}{interval \ in \ t \ values} & \text{when n is odd}\\
+\frac{t - average\ of\ two \ middle\ values}{half\ of \ interval \ in \ t \ values} & \text{when n is even}
+\end{cases}
+$$
+
+I defined this as `compute_Xt` previously. We therefore obtain the following transformed normal equations:
+
+$$
+\sum \ln(Y_t) = n\ ln(a) + ln(b) \sum X_t\\
+\sum X_t\ \ln (Y_t) = ln(a) \sum X_t + ln(b) \sum X_t^2
+$$
+
+To solve for the constants $ln(a)$ and $ln(b)$, we need to compute $\sum ln(Y_t)$, $\sum X_t$, $\sum X_t\ ln(y)$ and $\sum X_t^2$. As $X_t$ and $X_t^2$ are already computed, I computed the remaining two parameters for all the observations and created their respective columns in the data table as follows:
+
+```{r}
+#compute relevant parameters
+data$ln.y <- log(data$GDP.Yt)
+data$Xtln.y <- (data$Xt)*(data$ln.y)
+
+#view the results
+data[11:12]
+```
+
+I then computed the sum for each row:
+
+```{r}
+#compute the sum per row
+lny.sum <- sum(data$ln.y)
+Xt.sum <- sum(data$Xt)
+Xt.lny.sum <- sum(data$Xtln.y)
+Xtsq.sum <- sum(data$Xt.sq)
+
+#view results
+cat('\n Sum of ln(y): ',lny.sum, '\n Sum of Xt: ',Xt.sum, '\n Sum of Xt*ln(y): ',Xt.lny.sum, '\n Sum of Xt.sq: ',Xtsq.sum)
+```
+
+I also defined the $n$ parameter as follows:
+
+```{r}
+#define n
+n = nrow(data)
+
+#view result
+n
+```
+
+I used these sums and $n$ to solve for $ln(a)$ and $ln(b)$ using the normal equations, to get:
+
+$$
+40.74071 = 10\ ln\ a + 0\ ln\ b \\
+15.72683 = 0\ ln\ a + 330\ ln\ b
+$$
+
+I solved this using the the matrix method, and rearranged the equations as follows:
+
+$$
+\begin{pmatrix}
+10 & 0 \\
+0 & 330
+\end{pmatrix}
+\begin{pmatrix}
+\ln(a) \\
+\ln(b)
+\end{pmatrix}
+=
+\begin{pmatrix}
+40.74071 \\
+15.72683
+\end{pmatrix}
+$$
+
+I used the `solve()` function in r to compute this:
+
+```{r}
+# Define the coefficients matrix
+A <- matrix(c(10, 0, 0, 330), nrow = 2, byrow = TRUE)
+
+# Define the constants vector
+b <- c(40.74071, 15.72683)
+
+# Solve for beta
+constants <- solve(A, b)
+
+# Display the solutions
+ln.a <- constants[1]
+ln.b <- constants[2]
+
+cat("ln(a) =", ln.a, "\n")
+cat("ln(b) =", ln.b, "\n")
+```
+
+With the estimates $\ln(\hat a)$ and $\ln(\hat b)$, we can now solve for $\hat a$ and $\hat b$ by computing the antilogs (exponents) of the constants, as follows:
+
+```{r}
+#compute the exponential values
+a <- exp(ln.a)
+b <- exp(ln.b)
+
+#View results
+cat('a : ', a, 'b : ', b)
+```
+
+We thus have the necessary variables to solve for $Y_t$ using the estimator equation:
+
+$$\hat Y_t = \hat a \ \hat b^{X_t}$$
+
+We can revert the estimator to be in terms of $t$ rather than $X_t$ by considering:
+
+$$
+X_t = \frac{t - 2015.5}{0.5}
+$$
+
+Thus the estimator is transformed to be:
+
+$$
+\hat Y = \hat a\ \hat b^{\frac{t - 2015.5}{0.5}}
+$$
+
+I computed this for all values of t, and created the respective column in the `data` data-frame, as follows:
+
+```{r}
+#compute estimator for all values of t
+data$Yt.hat3 <- a*(b^(data$Year.t - mid) / interval)
+data$Yt.hat3
+
+```
+
+### 4. Visual Plot of Trend Lines
+
+#### Line Graph: Linear and Quadratic Trends
+
+I used a combined **line graph** to visually compare the computed linear and quadratic trend lines with the original values. I used the `geom_line()` function in the `ggplot` library.
+
+```{r}
+# Plot original and forecasted values
+ggplot(data, aes(x = Year.t)) +
+  geom_line(aes(y = GDP.Yt, color = "Original", group = 1), linetype = "solid") +
+  geom_line(aes(y = Yt.hat, color = "Linear Trend", group = 1), linetype = "dashed") +
+  geom_line(aes(y = Yt.hat2, color = "Quadratic Trend", group = 1), linetype = "dashed") +
+  labs(title = "Original Line and Trend Lines",
+       x = "Time (Years)",
+       y = "GDP (100 millions)",
+       color = "Series") +
+  scale_color_manual(values = c("Original" = "black",
+                                 "Linear Trend" = "red",
+                                 "Quadratic Trend" = "blue")) +
+  theme_minimal()
+```
+
+**Interpretation**
+
+On visual inspection, the **Quadratic trend line** appears to fit the original GDP values **slightly better than** the **Linear trend line**. Thus the Quadratic trend line appears to be a better fit in terms of forecasting the GDP values. However, an analysis of the forecast errors would give a more empirical comparison of which trend line is a better fit.
+
+#### Line graph: Linear, Quadratic and Exponential Trends
+
+```{r}
+# Plot original and forecasted values
+ggplot(data, aes(x = Year.t)) +
+  geom_line(aes(y = GDP.Yt, color = "Original", group = 1), linetype = "solid") +
+  geom_line(aes(y = Yt.hat, color = "Linear Trend", group = 1), linetype = "dashed") +
+  geom_line(aes(y = Yt.hat2, color = "Quadratic Trend", group = 1), linetype = "dashed") +
+  geom_line(aes(y = Yt.hat3, color = "Exponential Trend", group = 1), linetype = "dashed") +
+  labs(title = "Original Line and Trend Lines",
+       x = "Time (Years)",
+       y = "GDP (100 millions)",
+       color = "Series") +
+  scale_color_manual(values = c("Original" = "black",
+                                 "Linear Trend" = "red",
+                                 "Quadratic Trend" = "blue",
+                                "Exponential Trend" = "green")) +
+  theme_minimal()
+```
+
+**Intepratation**
+
+The **Exponential Trend** significantly deviates from the general trend of the original line, much more than both the Linear and Quadratic Trends. Thus, it is clearly not the line of best fit.
+
+## Part ii. Find Forecast Errors
+
+### 1. Compute and Compare Forecast Errors
+
+**Forecast errors** can further help us determine which trend line more accurately represents the original values by measuring the **deviation between predicted and actual outcomes**. Smaller errors indicate a more precise fit, allowing for better evaluation and comparison of different models.
+
+The formula for computing forecast errors is:
+
+$$E_t = Y_t - \hat Y_t$$
+
+I computed this formula for both the linear and quadratic trends, and inputted the values into new columns on the `data` table as shown below:
+
+```{r}
+#compute forecast errors for linear trend
+data$lin.err <- (data$GDP.Yt)-(data$Yt.hat)
+
+#compute forecast errors for quadratic trend
+data$quad.err <- (data$GDP.Yt)-(data$Yt.hat2)
+
+#compute forecast errors for exponential trend
+data$exp.err <- (data$GDP.Yt)-(data$Yt.hat3)
+
+#view the results
+data[14:16]
+```
+
+#### Line graph: Linear and Quadratic Forecast Errors
+
+I then created a line plot comparison of the forecast errors for the linear and quadratic trends.
+
+```{r}
+# Plot original and forecasted values
+ggplot(data, aes(x = Year.t)) +
+  geom_line(aes(y = lin.err, color = "Linear Trend Errors", group = 1), linetype = "solid") +
+  geom_line(aes(y = quad.err, color = "Quadratic Trend Errors", group = 1), linetype = "solid") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(title = "Linear and Quadratic Trend Errors",
+       x = "Time (Years)",
+       y = "Errors",
+       color = "Series") +
+  scale_color_manual(values = c("Linear Trend Errors" = "red",
+                                 "Quadratic Trend Errors" = "blue")) +
+  theme_minimal()
+```
+
+**Interpretation**
+
+The **Quadratic trend errors** demonstrate a **closer proximity to the zero line** compared to the linear trend errors, suggesting a **better alignment with the actual data**.
+
+Conversely, the **linear trend errors** exhibit **more deviation from the zero line**, indicating a **less accurate fit for forecasting purposes**. Thus, the quadratic trend appears to offer a superior forecast based on this analysis. However, a comparison of **Mean Squared Errors(MSE)** and **Mean Absolute Errors(MAE)** may give a more accurate analysis of the forecast errors.
+
+#### Line Graph: Linear, Quadratic and Exponential Trends
+
+I then created another line graph comparison of the forecast errors for the linear, quadratic and exponential trends.
+
+```{r}
+# Plot original and forecasted values
+ggplot(data, aes(x = Year.t)) +
+  geom_line(aes(y = lin.err, color = "Linear Trend Errors", group = 1), linetype = "solid") +
+  geom_line(aes(y = quad.err, color = "Quadratic Trend Errors", group = 1), linetype = "solid") +
+  geom_line(aes(y = exp.err, color = "Exponential Trend Errors", group = 1), linetype = "solid") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(title = "Linear, Quadratic & Exponential Trend Errors",
+       x = "Time (Years)",
+       y = "Errors",
+       color = "Series") +
+  scale_color_manual(values = c("Linear Trend Errors" = "red",
+                                 "Quadratic Trend Errors" = "blue",
+                                "Exponential Trend Errors" = "green")) +
+  theme_minimal()
+```
+
+**Interpretation**
+
+The **Exponential Trend Forecast Errors** significantly deviate from the original trend line, moreso than both the quadratic and linear trends, thus it is clearly not the trend of best fit.
+
+### 2. Compute and Compare MSE and MAE
+
+I computed the MAE and MSE for both the linear and quadratic trend lines as follows:
+
+```{r}
+# Compute the Mean Absolute Error (MAE)
+MAE.lin <- mean(abs(data$lin.err), na.rm = TRUE)
+MAE.quad <- mean(abs(data$quad.err), na.rm = TRUE)
+
+
+# Compute the Mean Squared Error (MSE)
+MSE.lin <- mean(data$lin.err^2, na.rm = TRUE)
+MSE.quad <- mean(data$quad.err^2, na.rm = TRUE)
+
+#view results
+cat('\n Mean Absolute Errors: ', '\n Linear Trend: ', MAE.lin, '\n Quadratic Trend: ', MAE.quad, '\n Mean Squared Errors: ', '\n Linear Trend: ', MSE.lin, '\n Quadratic Trend: ', MSE.quad)
+
+```
+
+I then created a **bar graph** of the computed values, to compare the trend lines and determine which is the best fit.
+
+```{r}
+# Create a data frame for MAE
+error_data <- data.frame(Model = c("Linear", "Quadratic"),
+                       MAE = c(MAE.lin, MAE.quad),
+                       MSE = c(MSE.lin, MSE.quad))
+
+# Create a bar chart
+mae.plot <- ggplot(error_data, aes(x = Model, y = MAE, fill = Model)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Mean Absolute Error (MAE)",
+       x = "Model",
+       y = "Mean Absolute Error (MAE)") +
+  theme_minimal()
+
+mse.plot <- ggplot(error_data, aes(x = Model, y = MSE, fill = Model)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Mean Squared Error (MSE)",
+       x = "Model",
+       y = "Mean Squared Error (MSE)") +
+  theme_minimal()
+
+# Arrange plots side by side
+ggarrange(mae.plot, mse.plot, ncol = 2)
+```
+
+**Interpretation**
+
+In both cases of MAE and MSE, the **Quadratic Trend Line** exhibits **less error** than the Linear Trend Line. Thus the **Quadratic Trend Line** is the better fit for forecasting the GDP values.
+
+## Part iii. Predict GDP for 2022
+
+I used the **Quadratic Trend** to predict the GDP for 2022, as it is the best fit model in terms of minimising forecasting errors.
+
+We can use the estimator function for the quadratic trend $\hat Y_t = 63.6 + 2.69 (\frac{t - 2015.5}{0.5}) -0.076 (\frac{t - 2015.5}{0.5})^2$ to forecast the GDP value for 2022, by substituting $t$ for 2022 in the equation.
+
+I computed this as follows:
+
+```{r}
+#compute the forecasted GDP for 2022
+Yt.2022 <- beta_0 + (beta_1*(2022 - mid)/interval) + (beta_2*((2022 - mid)/interval)^2)
+
+#view the result
+cat('Yt.2022: ', Yt.2022)
+```
+
+The Forecast GDP for 2022 is $85.8182$
+
+# Question 2
+
+The number of subscribers to a streaming service from 2014 to 2021 is given in the following table:
+
+| Year                       | 2014 | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 |
+|----------------------------|------|------|------|------|------|------|------|------|
+| **Subscribers (millions)** | 2    | 5    | 11   | 20   | 35   | 50   | 70   | 95   |
+
+i\. Fit the exponential trend
+
+ii\. Find the forecast errors
+
+iii\. Use the exponential trend model to predict the number of subscribers for 2024
+
+## Create the Table in Long Format
+
+First, I created my table in long format
+
+```{r}
+#define the parameters
+Year.t <- seq(2014, 2021)
+Subs.Zt <- c(2,5,11,20,35,50,70,95)
+
+#create the dataframe
+data2 <- data.frame(Year.t, Subs.Zt)
+
+#view result
+data2
+```
+
+## Part i: Fit the Exponential Trend
+
+The exponential trend is defined by the following function:
+
+$$
+Y_t = a\ b^{t}
+$$
+
+> Where
+>
+> -   $Y_t$ is the Time series data
+>
+> -   $t$ is the Time
+>
+> -   $a$ and $b$ are constants
+
+For ease of calculation, we can transform the equation by taking the natural logarithm on both sides of the model, as follows:
+
+$$
+ln(Y_t) = ln(a)+ t\times ln(b)
+$$
+
+The constant values $ln(a)$ and $ln(b)$ can be solved for simultaneously using the following normal equations:
+
+$$
+\sum ln\ y = n\ ln\ a + ln\ b \sum t\\
+\sum t\ ln \ y = ln\ a \sum t + ln\ b \sum t^2
+$$
+
+For ease of computation, we can transform the set of equations in t as follows:
+
+$$
+X_t =
+\begin{cases}
+\frac{t - middle\ value}{interval \ in \ t \ values} & \text{when n is odd}\\
+\frac{t - average\ of\ two \ middle\ values}{half\ of \ interval \ in \ t \ values} & \text{when n is even}
+\end{cases}
+$$
+
+Thus, we get the following transformed normal equations:
+
+$$
+\sum ln\ y = n\ ln\ a + ln\ b \sum X_t\\
+\sum X_t\ ln \ y = ln\ a \sum X_t + ln\ b \sum X_t^2
+$$
+
+With these normal equations, I need to compute $\sum log\ y$ , $\sum X_t$, $\sum X_t\ log\ y$ and $\sum X_t^2$. I thus computed these for all the rows and created their respective columns in the `data2` table as follows:
+
+```{r}
+#compute relevant parameters
+data2$Xt <- compute_Xt(data2$Year.t)
+data2$ln.y <- log(data2$Subs.Zt)
+data2$Xtln.y <- (data2$Xt)*(data2$ln.y)
+data2$Xt.sq <- (data2$Xt)^2
+
+#view the results
+data2[3:5]
+```
+
+I then computed the sum of each row as follows:
+
+```{r}
+#compute the sum per row
+lny.sum <- sum(data2$ln.y)
+Xt.sum <- sum(data2$Xt)
+Xt.lny.sum <- sum(data2$Xtln.y)
+Xtsq.sum <- sum(data2$Xt.sq)
+
+#view results
+cat('\n Sum of ln(y): ',lny.sum, '\n Sum of Xt: ',Xt.sum, '\n Sum of Xt*ln(y): ',Xt.lny.sum, '\n Sum of Xt.sq: ',Xtsq.sum)
+```
+
+I also defined the parameter n, as follows:
+
+```{r}
+#define n
+n = nrow(data2)
+
+#view result
+n
+```
+
+I used these sums and $n$ to solve for $ln(a)$ and $ln(b)$ in the normal equations, to get:
+
+$$
+23.96596 = 8a + 0\beta_1\\
+45.32239 = 0\ a + 168\beta_1
+$$
+
+I solved the simultaneous equations using the matrix method by rearranging them as follows:
+
+$$
+\begin{pmatrix}
+8 & 0 \\
+0 & 168
+\end{pmatrix}
+\begin{pmatrix}
+a \\
+\beta_1
+\end{pmatrix}
+=
+\begin{pmatrix}
+23.96596 \\
+45.32239
+\end{pmatrix}
+$$
+
+I used the `solve()` function to compute these as follows:
+
+```{r}
+# Define the coefficients matrix
+A <- matrix(c(8, 0, 0, 168), nrow = 2, byrow = TRUE)
+
+# Define the constants vector
+b <- c(23.96, 45.32)
+
+# Solve for beta
+constants <- solve(A, b)
+
+# Display the solutions
+ln.a <- constants[1]
+ln.b <- constants[2]
+
+cat("ln(a) =", ln.a, "\n")
+cat("ln(b) =", ln.b, "\n")
+```
+
+With the estimates $ln( \hat a)$ and $ln( \hat b)$, we can now solve for $\hat a$ and $\hat b$ by computing their antilogs (exponents) as follows:
+
+```{r}
+#compute the exponential values
+a <- exp(ln.a)
+b <- exp(ln.b)
+
+#View results
+cat('a : ', a, 'b : ', b)
+```
+
+We thus have all the necessary variables to compute the estimator equation:
+
+$$
+\hat Y = \hat a \ \hat b^{X_t}
+$$
+
+We can revert the equation to be in terms of $t$ by solving for the relationship between $X_t$ and $t$, as per the formula:
+
+$$
+X_t[n\ is\ even] = \frac{t - avg\ of\ middle\ values}{half\ interval\ in \ t \ values}
+$$
+
+I computed this using the formulas I had previously defined, to find the **average of the middle values** and **half the interval in t values**.
+
+```{r}
+#compute parameters
+mid <- compute_middle_value_avg(data2$Year.t)
+interval <- compute_half_interval(data2$Year.t)
+
+#view results
+cat('\n Average of Middle Values: ', mid, '\n Half Interval of middle Values: ', interval)
+```
+
+Thus the formula for $X_t$ in terms of t is $X_t = \frac{t - 2017.5}{0.5}$. Thus the estimator equation is transformed to be:
+
+$$
+\hat Y_t = \hat a\ \hat b^{\frac{t-2017.5}{0.5}} 
+$$
+
+I computed this for all values of t as follows:
+
+```{r}
+#compute estimator for all values of t
+data2$Yt.hat <- a*(b^(data2$Year.t - mid) / interval)
+data2$Yt.hat
+```
+
+These are the values estimated by the computed exponential trend.
+
+I visualised the trend lines of the original data and the exponential trend line as follows:
+
+```{r}
+# Plot original and forecasted values
+ggplot(data2, aes(x = Year.t)) +
+  geom_line(aes(y = Subs.Zt, color = "Original", group = 1), linetype = "solid") +
+  geom_line(aes(y = Yt.hat, color = "Exponential Trend", group = 1), linetype = "dashed") +
+  labs(title = "Original Line and Trend Lines",
+       x = "Time (Years)",
+       y = "subs (100 millions)",
+       color = "Series") +
+  scale_color_manual(values = c("Original" = "black",
+                                 "Exponential Trend" = "red")) +
+  theme_minimal()
+```
+
+**Interpretation**
+
+The **Exponential Trend Line** is more accurately forecasts the original trend values in later years as compared to earlier years. This means that as time progresses, the predictions made by the exponential trend line align more closely with the observed data.
+
+The **visual fit** of the exponential trend line to the original data is good, as the exponential trend line follows the general direction and pattern of the original data. This means that the trend line runs closely parallel to the actual data points.
+
+.
+
+## Part ii. Find Forecast Errors
+
+The formula for computing forecast errors is:
+
+$$
+E_t = Y_t - \hat Y_t$
+$$
+
+I computed this for all values of t for the exponential trend line, and created its respective column in the data-frame, as follows:
+
+```{r}
+#compute forecast errors for exponential trend
+data2$exp.err <- (data2$Subs.Zt)-(data2$Yt.hat)
+data2$exp.err
+```
+
+#### Line Graph: Exponential Forecast Errors vs Original Line
+
+I then visualised the exponential trend errors on a line graph, in comparison with the original line errors which equal 0.
+
+```{r}
+# Plot original and forecasted values
+ggplot(data2, aes(x = Year.t)) +
+  geom_line(aes(y = exp.err, color = "Exponential Trend Errors", group = 1), linetype = "solid") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(title = "Exponential Trend Errors",
+       x = "Time (Years)",
+       y = "Errors",
+       color = "Series") +
+  scale_color_manual(values = c("Exponential Trend Errors" = "red")) +
+  theme_minimal()
+```
+
+**Interpretation**
+
+The exponential trend line provides a forecast that fits the original data more accurately in the later years compared to the earlier years. This means that the trend line aligns more closely with the observed values as time progresses.
+
+Furthermore, the forecast error, which falls within the range $E_t \in [-15, 17]$, indicates that the model tends to overestimate the actual values slightly. This means the trend line predicts values that are generally higher than the observed data, though the deviation is not extreme and remains within a certain range.
+
+## Part 3: Predict Subscribers for 2024
+
+We can use the estimator equation $\hat Y = \hat a \ \hat b^{\frac{t-2017.5}{0.5}}$ to forecast the subscriber count for 2024 by substituting the year for $t$. I computed this as follows:
+
+```{r}
+#compute subscriber count
+subs.24 <- a*(b^(2024 - mid) / interval)
+
+#view result
+subs.24
+```
+
+The forecast subscriber count for 2024 is $230.8111$. Rounded up, that is $231$ subscribers.
